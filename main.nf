@@ -13,7 +13,7 @@ params.run_sarek        = params.run_sarek        ?: true
 params.sarek_run_outdir  = params.sarek_run_outdir ?: "${params.outdir}/sarek"
 params.sarek_outdir     = params.sarek_outdir     ?: null
 params.sarek_rev        = params.sarek_rev        ?: "3.5.1"
-params.sarek_profile    = params.sarek_profile    ?: "singularity"
+params.sarek_profile    = params.sarek_profile    ?: "docker"
 params.sarek_config     = params.sarek_config     ?: "${workflow.projectDir}/conf/sarek_override.config"
 
 // The extra args will usually come from nextflow.config, default to genome only
