@@ -4,123 +4,77 @@
   "title": "Bionl_Lean_Call parameters",
   "description": "A germline variant-calling workflow focused on ACMG Secondary Findings (research use only), with standardized QC, annotation, and per-sample reports.",
   "type": "object",
-  "$defs": {
-    "io_options": {
-      "title": "Input / Output",
-      "type": "object",
-      "fa_icon": "fas fa-terminal",
-      "description": "Where to find the samplesheet and where to write results.",
-      "help_text": "Specify the samplesheet CSV and the output directory.",
-      "required": ["samplesheet", "outdir"],
-      "properties": {
-        "samplesheet": {
-          "type": "string",
-          "description": "Path to the CSV file containing sample information.",
-          "help_text": "A comma-separated file listing patient/sample identifiers and FASTQ/VCF paths.",
-          "fa_icon": "fas fa-file-csv",
-          "format": "file-path",
-          "mimetype": "text/csv",
-          "pattern": "^\\S+\\.csv$"
-        },
-        "outdir": {
-          "type": "string",
-          "description": "Directory where analysis results will be saved.",
-          "help_text": "Results are organized by step with subfolders for qc/, vcf/, and reports/.",
-          "fa_icon": "fas fa-folder-open",
-          "format": "directory-path"
-        }
-      }
+
+  "properties": {
+    "outdir": {
+      "type": "string",
+      "description": "Directory where analysis results will be saved.",
+      "help_text": "Results are organized by step with subfolders for qc/, vcf/, and reports/.",
+      "fa_icon": "fas fa-folder-open",
+      "format": "directory-path"
     },
-    "sarek_control": {
-      "title": "Upstream Sarek control",
-      "type": "object",
-      "fa_icon": "fas fa-project-diagram",
-      "description": "Choose whether to run Sarek upstream or reuse an existing Sarek results directory.",
-      "properties": {
-        "run_sarek": {
-          "type": "boolean",
-          "default": true,
-          "description": "Run nf-core/sarek inside this workflow (true) or skip it and reuse an existing Sarek output directory (false).",
-          "fa_icon": "fas fa-toggle-on"
-        },
-        "sarek_outdir": {
-          "type": "string",
-          "description": "Path to an existing Sarek output directory (required if run_sarek = false).",
-          "help_text": "Should contain preprocessing/mapped/*/*.sorted.bam and variant_calling/*/*.vcf.gz.",
-          "fa_icon": "fas fa-folder-open",
-          "format": "directory-path"
-        }
-      }
+
+    "run_sarek": {
+      "type": "boolean",
+      "default": true,
+      "description": "If true, run nf-core/sarek inside this workflow using a FASTQ samplesheet. If false, reuse existing VCF/BAMs (either via a Sarek output directory or a post-only samplesheet).",
+      "fa_icon": "fas fa-toggle-on"
     },
-    "post_sarek": {
-      "title": "Post-Sarek annotation options",
-      "type": "object",
-      "fa_icon": "fas fa-dna",
-      "description": "VEP and annotation resources (paths can be local or cloud URIs like gs://).",
-      "properties": {
-        "vep_cache": {
-          "type": "string",
-          "description": "Path/URI to the VEP cache root.",
-          "fa_icon": "fas fa-cloud-download-alt",
-          "format": "directory-path"
-        },
-        "vep_fasta": {
-          "type": "string",
-          "description": "Reference FASTA for VEP.",
-          "fa_icon": "fas fa-file",
-          "format": "file-path",
-          "pattern": "^\\S+\\.f(ast)?a(\\.gz)?$"
-        },
-        "gnomad_vcf": {
-          "type": "string",
-          "description": "gnomAD VCF for annotation.",
-          "fa_icon": "fas fa-file",
-          "format": "file-path",
-          "pattern": "^\\S+\\.vcf(\\.gz)?$"
-        },
-        "revel_vcf": {
-          "type": "string",
-          "description": "REVEL table/VCF (bgzipped).",
-          "fa_icon": "fas fa-file",
-          "format": "file-path",
-          "pattern": "^\\S+\\.(vcf|tsv)(\\.gz)?$"
-        },
-        "alpha_missense_vcf": {
-          "type": "string",
-          "description": "AlphaMissense table/VCF (bgzipped).",
-          "fa_icon": "fas fa-file",
-          "format": "file-path",
-          "pattern": "^\\S+\\.(vcf|tsv)(\\.gz)?$"
-        },
-        "clinvar_vcf": {
-          "type": "string",
-          "description": "ClinVar VCF (bgzipped).",
-          "fa_icon": "fas fa-file",
-          "format": "file-path",
-          "pattern": "^\\S+\\.vcf(\\.gz)?$"
-        },
-        "vep_plugins": {
-          "type": "string",
-          "description": "Directory with VEP plugins (e.g. REVEL.pm, AlphaMissense.pm).",
-          "fa_icon": "fas fa-folder-open",
-          "format": "directory-path"
-        }
-      }
+
+    "samplesheet": {
+      "type": "string",
+      "description": "FASTQ samplesheet for Sarek (only when run_sarek=true).",
+      "help_text": "CSV for upstream Sarek with patient/sample identifiers and FASTQ paths.",
+      "fa_icon": "fas fa-file-csv",
+      "format": "file-path",
+      "mimetype": "text/csv",
+      "pattern": "^\\S+\\.csv$"
+    },
+
+    "sarek_outdir": {
+      "type": "string",
+      "description": "Existing Sarek output directory to reuse (when run_sarek=false).",
+      "help_text": "Should contain preprocessing/mapped/*/*.sorted.bam and variant_calling/*/*/*.vcf.gz.",
+      "fa_icon": "fas fa-folder-open",
+      "format": "directory-path"
+    },
+
+    "post_only_samplesheet": {
+      "type": "string",
+      "description": "Post-only samplesheet (when run_sarek=false).",
+      "help_text": "CSV with columns: sample,vcf,bam[,bai]. Use when you have BAM/VCF ready and do not want to run Sarek.",
+      "fa_icon": "fas fa-file-csv",
+      "format": "file-path",
+      "mimetype": "text/csv",
+      "pattern": "^\\S+\\.csv$"
     }
   },
+
+  "required": ["outdir", "run_sarek"],
+
   "allOf": [
-    { "$ref": "#/$defs/io_options" },
-    { "$ref": "#/$defs/sarek_control" },
-    { "$ref": "#/$defs/post_sarek" },
+    {
+      "if": {
+        "properties": { "run_sarek": { "const": true } },
+        "required": ["run_sarek"]
+      },
+      "then": {
+        "required": ["samplesheet"]
+      }
+    },
     {
       "if": {
         "properties": { "run_sarek": { "const": false } },
         "required": ["run_sarek"]
       },
       "then": {
-        "required": ["sarek_outdir"]
+        "oneOf": [
+          { "required": ["sarek_outdir"] },
+          { "required": ["post_only_samplesheet"] }
+        ]
       }
     }
   ],
+
   "additionalProperties": true
 }

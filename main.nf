@@ -2,6 +2,7 @@ nextflow.enable.dsl=2
 log.info ">>> Bionl_Lean_Call v1.0.3 – updated on 2025-10-07 <<<"
 // Input params
 params.samplesheet      = params.samplesheet      ?: "${workflow.projectDir}/data/samplesheet.csv"
+params.post_samplesheet = params.post_samplesheet ?: "${workflow.projectDir}/data/post_samplesheet.csv"
 params.intervals        = params.intervals        ?: "${workflow.projectDir}/data/chr22_targets.bed"
 params.bed              = params.bed              ?: "data/annotated_merged_MANE_deduped.bed"
 params.outdir           = params.outdir           ?: "${workflow.projectDir}/results"
@@ -128,34 +129,84 @@ workflow {
       .collate(3) // Group back into tuples of 3
       .map { it -> tuple(it[0], it[1], it[2]) }
 
-  } else {
-    // Use pre-existing Sarek output
-    if (!params.sarek_outdir) {
-      error "Must provide --sarek_outdir when --run_sarek is false"
+  //} else {
+  //  // Use pre-existing Sarek output
+  //  if (!params.sarek_outdir) {
+  //    error "Must provide --sarek_outdir when --run_sarek is false"
+  //  }
+//
+  //  vcf_ch = Channel
+  //    .fromPath("${params.sarek_outdir}/variant_calling/deepvariant/*/*.vcf.gz", checkIfExists: true)
+  //    .filter { vcf -> 
+  //      vcf.name.endsWith('.vcf.gz') && 
+  //      !vcf.name.contains('.g.vcf.gz') && 
+  //      !vcf.name.endsWith('.tbi')
+  //    }
+  //    .map { vcf -> tuple(vcf.parent.name, vcf) }
+//
+  //  bam_ch = Channel
+  //    .fromPath("${params.sarek_outdir}/preprocessing/mapped/*/*.sorted.bam", checkIfExists: true)
+  //    .map { bam ->
+  //      def sample = bam.parent.name
+  //      def bai = file("${bam}.bai")
+  //      if (!bai.exists()) {
+  //        bai = file(bam.toString().replaceAll(/\.bam$/, '.bai'))
+  //      }
+  //      if (!bai.exists()) {
+  //        error "BAM index not found for ${bam}"
+  //      }
+  //      tuple(sample, bam, bai)
+  //    }
+  //}
+    } else {
+    /*
+     * POST-ONLY MODE (run_sarek = false)
+     * Option A) --sarek_outdir points to a finished Sarek run
+     * Option B) a CSV samplesheet with columns: sample, vcf, bam[, bai]
+     */
+
+    if ( params.sarek_outdir ) {
+      // --- A) Reuse an existing Sarek results directory
+      vcf_ch = Channel
+        .fromPath("${params.sarek_outdir}/variant_calling/*/*/*.vcf.gz", checkIfExists: true)
+        .filter { v -> v.name.endsWith('.vcf.gz') && !v.name.contains('.g.vcf.gz') && !v.name.endsWith('.tbi') }
+        .map { vcf -> tuple(vcf.parent.name, vcf) }
+
+      bam_ch = Channel
+        .fromFilePairs("${params.sarek_outdir}/preprocessing/mapped/*/*.sorted.{bam,bai}", size: 2, flat: true, checkIfExists: true)
+        .map { sample, files ->
+          def bam = files.find { it.name.endsWith('.bam') }
+          def bai = files.find { it.name.endsWith('.bai') }
+          tuple(sample, bam, bai)
+        }
+
+    } else if ( params.post_samplesheet ) {
+      // --- B) Use a post-only post_samplesheet with VCF/BAM paths
+      // CSV columns required: sample, vcf, bam  (optional: bai)
+      def rows = Channel
+        .fromPath(params.post_samplesheet, checkIfExists: true)
+        .splitCsv(header: true)
+        .map { row ->
+          // basic validation
+          if( !row.sample || !row.vcf || !row.bam )
+            error "Post-only post_samplesheet must have columns: sample,vcf,bam (optional bai)"
+          // coerce to files
+          def v = file(row.vcf)
+          def b = file(row.bam)
+          def i = row.bai ? file(row.bai) : file("${row.bam}.bai")
+          if( !v.exists() ) error "VCF not found for sample ${row.sample}: ${v}"
+          if( !b.exists() ) error "BAM not found for sample ${row.sample}: ${b}"
+          if( !i.exists() ) error "BAI not found for sample ${row.sample}: ${i}"
+          // emit a composite map; we’ll split into two channels below
+          [ sample: row.sample as String, vcf: v, bam: b, bai: i ]
+        }
+
+      vcf_ch = rows.map { r -> tuple(r.sample, r.vcf) }
+      bam_ch = rows.map { r -> tuple(r.sample, r.bam, r.bai) }
+
+    } else {
+      error "When --run_sarek false, provide either --sarek_outdir OR a post-only --post_samplesheet with columns sample,vcf,bam[,bai]."
     }
-
-    vcf_ch = Channel
-      .fromPath("${params.sarek_outdir}/variant_calling/deepvariant/*/*.vcf.gz", checkIfExists: true)
-      .filter { vcf -> 
-        vcf.name.endsWith('.vcf.gz') && 
-        !vcf.name.contains('.g.vcf.gz') && 
-        !vcf.name.endsWith('.tbi')
-      }
-      .map { vcf -> tuple(vcf.parent.name, vcf) }
-
-    bam_ch = Channel
-      .fromPath("${params.sarek_outdir}/preprocessing/mapped/*/*.sorted.bam", checkIfExists: true)
-      .map { bam ->
-        def sample = bam.parent.name
-        def bai = file("${bam}.bai")
-        if (!bai.exists()) {
-          bai = file(bam.toString().replaceAll(/\.bam$/, '.bai'))
-        }
-        if (!bai.exists()) {
-          error "BAM index not found for ${bam}"
-        }
-        tuple(sample, bam, bai)
-      }
   }
 
   // Optional: Debug channels
