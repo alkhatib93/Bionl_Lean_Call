@@ -144,7 +144,7 @@ workflow {
       .map { vcf -> tuple(vcf.parent.name, vcf) }
 
     bam_ch = Channel
-      .fromPath("${params.sarek_outdir}/preprocessing/mapped/*/*.bam", checkIfExists: true)
+      .fromPath("${params.sarek_outdir}/preprocessing/mapped/*/*.sorted.bam", checkIfExists: true)
       .map { bam ->
         def sample = bam.parent.name
         def bai = file("${bam}.bai")
