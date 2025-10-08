@@ -14,7 +14,7 @@ params.run_sarek        = params.run_sarek        ?: true
 params.sarek_run_outdir  = params.sarek_run_outdir ?: "${params.outdir}/sarek"
 params.sarek_outdir     = params.sarek_outdir     ?: null
 params.sarek_rev        = params.sarek_rev        ?: "3.5.1"
-params.sarek_profile    = params.sarek_profile    ?: "docker"
+params.sarek_profile    = params.sarek_profile    ?: "singularity"
 params.sarek_config     = params.sarek_config     ?: "${workflow.projectDir}/conf/sarek_override.config"
 
 // The extra args will usually come from nextflow.config, default to genome only
@@ -56,7 +56,7 @@ process RunSarek {
   fi
 
   nextflow run nf-core/sarek -r ${params.sarek_rev} \\
-    -profile ${params.sarek_profile} \\
+    -profile singularity\\
     --input ${samplesheet} \\
     --outdir ${SAREK_OUT_ABS} \\
     --genome GATK.GRCh38 \\
@@ -84,6 +84,7 @@ workflow {
   
   def vcf_ch
   def bam_ch
+  println 'Hello, World!'
 
   if (params.run_sarek) {
     // Run Sarek first
