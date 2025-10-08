@@ -15,7 +15,7 @@
         "outdir": {
           "type": "string",
           "description": "Directory where analysis results will be saved.",
-          "help_text": "Results are organized by sample with subfolders qc/, vcf/, and reports/.",
+          "help_text": "Results are organized by sample with qc/, vcf/, and reports/.",
           "format": "directory-path"
         }
       }
@@ -35,28 +35,28 @@
         },
         "samplesheet": {
           "type": "string",
-          "description": "FASTQ samplesheet for Sarek (used when run_sarek = true).",
-          "help_text": "CSV for Sarek with patient/sample and FASTQ info.",
+          "default": "",
+          "description": "FASTQ samplesheet for Sarek (only used when run_sarek=true).",
           "fa_icon": "fas fa-file-csv",
           "format": "file-path",
           "mimetype": "text/csv",
-          "pattern": "^\\S+\\.csv$"
+          "pattern": "^\\S*\\.csv$"
         },
         "sarek_outdir": {
           "type": "string",
-          "description": "Existing Sarek output directory (option when run_sarek = false).",
-          "help_text": "Should contain preprocessing/mapped/*/*.sorted.bam and variant_calling/*/*/*.vcf.gz.",
+          "default": "",
+          "description": "Existing Sarek output directory (optional when run_sarek=false).",
           "fa_icon": "fas fa-folder-open",
           "format": "directory-path"
         },
         "post_only_samplesheet": {
           "type": "string",
-          "description": "Post-only samplesheet (option when run_sarek = false).",
-          "help_text": "CSV with columns: sample,vcf,bam[,bai]. Use if you already have BAM/VCF.",
+          "default": "",
+          "description": "Post-only samplesheet (optional when run_sarek=false). CSV with columns: sample,vcf,bam[,bai].",
           "fa_icon": "fas fa-file-csv",
           "format": "file-path",
           "mimetype": "text/csv",
-          "pattern": "^\\S+\\.csv$"
+          "pattern": "^\\S*\\.csv$"
         }
       }
     },
@@ -66,46 +66,13 @@
       "type": "object",
       "fa_icon": "fas fa-dna",
       "properties": {
-        "vep_cache": {
-          "type": "string",
-          "description": "Path/URI to VEP cache root (e.g., /vep_data/cache or gs://bucket/vep_data/cache).",
-          "format": "directory-path"
-        },
-        "vep_plugins": {
-          "type": "string",
-          "description": "Directory with VEP plugins (e.g. REVEL.pm, AlphaMissense.pm).",
-          "format": "directory-path"
-        },
-        "vep_fasta": {
-          "type": "string",
-          "description": "Reference FASTA for VEP.",
-          "format": "file-path",
-          "pattern": "^\\S+\\.f(ast)?a(\\.gz)?$"
-        },
-        "gnomad_vcf": {
-          "type": "string",
-          "description": "gnomAD VCF (optional).",
-          "format": "file-path",
-          "pattern": "^\\S+\\.vcf(\\.gz)?$"
-        },
-        "revel_vcf": {
-          "type": "string",
-          "description": "REVEL table/VCF (bgzipped).",
-          "format": "file-path",
-          "pattern": "^\\S+\\.(vcf|tsv)(\\.gz)?$"
-        },
-        "alpha_missense_vcf": {
-          "type": "string",
-          "description": "AlphaMissense table/VCF (bgzipped).",
-          "format": "file-path",
-          "pattern": "^\\S+\\.(vcf|tsv)(\\.gz)?$"
-        },
-        "clinvar_vcf": {
-          "type": "string",
-          "description": "ClinVar VCF (bgzipped).",
-          "format": "file-path",
-          "pattern": "^\\S+\\.vcf(\\.gz)?$"
-        }
+        "vep_cache":      { "type": "string", "description": "Path/URI to VEP cache root.", "format": "directory-path" },
+        "vep_plugins":    { "type": "string", "description": "Directory with VEP plugins.",   "format": "directory-path" },
+        "vep_fasta":      { "type": "string", "description": "Reference FASTA for VEP.",      "format": "file-path", "pattern": "^\\S+\\.f(ast)?a(\\.gz)?$" },
+        "gnomad_vcf":     { "type": "string", "description": "gnomAD VCF (optional).",        "format": "file-path", "pattern": "^\\S+\\.vcf(\\.gz)?$" },
+        "revel_vcf":      { "type": "string", "description": "REVEL TSV/VCF (bgzipped).",     "format": "file-path", "pattern": "^\\S+\\.(vcf|tsv)(\\.gz)?$" },
+        "alpha_missense_vcf": { "type": "string", "description": "AlphaMissense TSV/VCF (bgzipped).", "format": "file-path", "pattern": "^\\S+\\.(vcf|tsv)(\\.gz)?$" },
+        "clinvar_vcf":    { "type": "string", "description": "ClinVar VCF (bgzipped).",       "format": "file-path", "pattern": "^\\S+\\.vcf(\\.gz)?$" }
       }
     }
   },
@@ -113,22 +80,7 @@
   "allOf": [
     { "$ref": "#/$defs/io_options" },
     { "$ref": "#/$defs/sarek_control" },
-    { "$ref": "#/$defs/post_sarek" },
-
-    {
-      "if": { "properties": { "run_sarek": { "const": true } }, "required": ["run_sarek"] },
-      "then": { "required": ["samplesheet"] }
-    },
-
-    {
-      "if": { "properties": { "run_sarek": { "const": false } }, "required": ["run_sarek"] },
-      "then": {
-        "oneOf": [
-          { "required": ["sarek_outdir"] },
-          { "required": ["post_only_samplesheet"] }
-        ]
-      }
-    }
+    { "$ref": "#/$defs/post_sarek" }
   ],
 
   "additionalProperties": true
