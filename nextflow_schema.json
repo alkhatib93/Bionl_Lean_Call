@@ -31,6 +31,27 @@
         }
       }
     },
+    "sarek_control": {
+      "title": "Upstream Sarek control",
+      "type": "object",
+      "fa_icon": "fas fa-project-diagram",
+      "description": "Choose whether to run Sarek upstream or reuse an existing Sarek results directory.",
+      "properties": {
+        "run_sarek": {
+          "type": "boolean",
+          "default": true,
+          "description": "Run nf-core/sarek inside this workflow (true) or skip it and reuse an existing Sarek output directory (false).",
+          "fa_icon": "fas fa-toggle-on"
+        },
+        "sarek_outdir": {
+          "type": "string",
+          "description": "Path to an existing Sarek output directory (required if run_sarek = false).",
+          "help_text": "Should contain preprocessing/mapped/*/*.sorted.bam and variant_calling/*/*.vcf.gz.",
+          "fa_icon": "fas fa-folder-open",
+          "format": "directory-path"
+        }
+      }
+    },
     "post_sarek": {
       "title": "Post-Sarek annotation options",
       "type": "object",
@@ -80,7 +101,7 @@
         },
         "vep_plugins": {
           "type": "string",
-          "description": "Directory with VEP plugins (e.g. loftee).",
+          "description": "Directory with VEP plugins (e.g. REVEL.pm, AlphaMissense.pm).",
           "fa_icon": "fas fa-folder-open",
           "format": "directory-path"
         }
@@ -89,7 +110,17 @@
   },
   "allOf": [
     { "$ref": "#/$defs/io_options" },
-    { "$ref": "#/$defs/post_sarek" }
+    { "$ref": "#/$defs/sarek_control" },
+    { "$ref": "#/$defs/post_sarek" },
+    {
+      "if": {
+        "properties": { "run_sarek": { "const": false } },
+        "required": ["run_sarek"]
+      },
+      "then": {
+        "required": ["sarek_outdir"]
+      }
+    }
   ],
   "additionalProperties": true
 }
