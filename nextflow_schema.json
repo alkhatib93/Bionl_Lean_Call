@@ -22,21 +22,19 @@
           "description": "CSV file for Sarek input. Required if run_sarek = true.",
           "mimetype": "text/csv",
           "format": "file-path",
-          "pattern": "^(gs://|/|\\.|[A-Za-z]:\\\\).+\\.csv$"
+          "pattern": "^\\S*\\.csv$"
         },
         "outdir": {
           "type": "string",
           "title": "Output directory",
           "description": "Where to write results (local path or gs://).",
-          "format": "directory-path",
-          "pattern": "^(gs://|/|\\.|[A-Za-z]:\\\\).+$"
+          "format": "directory-path"
         },
         "sarek_outdir": {
           "type": "string",
           "title": "Existing Sarek results directory",
           "description": "Use a pre-run Sarek results folder if run_sarek=false.",
-          "format": "directory-path",
-          "pattern": "^(gs://|/|\\.|[A-Za-z]:\\\\).+$"
+          "format": "directory-path"
         },
         "post_samplesheet": {
           "type": "string",
@@ -44,7 +42,7 @@
           "description": "CSV with sample,vcf,bam for post-Sarek mode.",
           "mimetype": "text/csv",
           "format": "file-path",
-          "pattern": "^(gs://|/|\\.|[A-Za-z]:\\\\).+\\.csv$"
+          "pattern": "^\\S*\\.csv$"
         }
       }
     },
