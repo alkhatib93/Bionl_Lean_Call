@@ -21,14 +21,13 @@ params.bed     = params.bed     ?: "${workflow.projectDir}/data/annotated_merged
 
 // Any extra Sarek params you'll pass on CLI (e.g., --genome, --fasta, --tools, …)
 // ── Fail fast if missing ──
-if( !params.input ) {
-    error "❌ Missing required parameter: --input <samplesheet.csv>\n" +
-          "Example: nextflow run main.nf --input data/sarek_sample_sheet.csv --outdir results/"
-}
-
-if( !params.outdir ) {
-    error "❌ Missing required parameter: --outdir <results directory>\n" +
-          "Example: nextflow run main.nf --input data/sarek_sample_sheet.csv --outdir results/"
+if( params.run_sarek ) {
+  if( !params.input )  error "Missing --input (samplesheet CSV) when run_sarek=true"
+  if( !params.outdir ) error "Missing --outdir when run_sarek=true"
+} else {
+  if( !params.sarek_outdir ) error "Missing --outdir when run_sarek=false"
+  if( !params.post_samplesheet && !params.sarek_outdir )
+    error "When run_sarek=false provide either --post_samplesheet or --sarek_outdir"
 }
 // ── Helper workflow to collect Sarek outputs ────────────────────────────────────
 workflow COLLECT_SAREK_OUTPUTS {
