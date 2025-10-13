@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/<your-org-or-user>/Bionl_Lean_Call/main/nextflow_schema.json",
+  "$id": "https://raw.githubusercontent.com/alkhatib93/Bionl_Lean_Call/main/nextflow_schema.json",
   "title": "Bionl_Lean_Call parameters",
   "description": "A germline variant-calling workflow focused on ACMG Secondary Findings (research use only), with standardized QC, annotation, and per-sample reports.",
   "type": "object",
