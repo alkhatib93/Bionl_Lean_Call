@@ -1,7 +1,6 @@
 # Nextflow
 .nextflow/
 work/
-data/
 results/
 output/
 *.log*
