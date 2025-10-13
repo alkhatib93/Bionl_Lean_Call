@@ -13,14 +13,23 @@ include { POST_SAREK } from './modules/vep.nf'
 // ── Params (defaults). Map your samplesheet → Sarek's expected --input ─────────
 //params.samplesheet   = params.samplesheet   ?: "${workflow.projectDir}/data/samplesheet.csv"
 params.input = params.input ?: params.samplesheet
-params.remove('samplesheet')
-
-params.outdir  = params.outdir  ?: "${workflow.projectDir}/results/sarek"
+//params.remove('samplesheet')
+params.outdir = params.outdir ?: params.output
+//params.outdir  = params.outdir  ?: "${workflow.projectDir}/results/sarek"
 params.bed     = params.bed     ?: "${workflow.projectDir}/data/annotated_merged_MANE_deduped.bed"
 //params.intervals     = params.intervals     ?: "${workflow.projectDir}/data/chr22_targets.bed"
 
 // Any extra Sarek params you'll pass on CLI (e.g., --genome, --fasta, --tools, …)
+// ── Fail fast if missing ──
+if( !params.input ) {
+    error "❌ Missing required parameter: --input <samplesheet.csv>\n" +
+          "Example: nextflow run main.nf --input data/sarek_sample_sheet.csv --outdir results/"
+}
 
+if( !params.outdir ) {
+    error "❌ Missing required parameter: --outdir <results directory>\n" +
+          "Example: nextflow run main.nf --input data/sarek_sample_sheet.csv --outdir results/"
+}
 // ── Helper workflow to collect Sarek outputs ────────────────────────────────────
 workflow COLLECT_SAREK_OUTPUTS {
   take:
