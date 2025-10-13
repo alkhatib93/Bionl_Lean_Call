@@ -21,18 +21,21 @@
           "title": "Samplesheet CSV",
           "description": "CSV file for Sarek input. Required if run_sarek = true.",
           "mimetype": "text/csv",
+          "format": "file-path",
           "pattern": "^(gs://|/|\\.|[A-Za-z]:\\\\).+\\.csv$"
         },
         "outdir": {
           "type": "string",
           "title": "Output directory",
           "description": "Where to write results (local path or gs://).",
+          "format": "directory-path",
           "pattern": "^(gs://|/|\\.|[A-Za-z]:\\\\).+$"
         },
         "sarek_outdir": {
           "type": "string",
           "title": "Existing Sarek results directory",
           "description": "Use a pre-run Sarek results folder if run_sarek=false.",
+          "format": "directory-path",
           "pattern": "^(gs://|/|\\.|[A-Za-z]:\\\\).+$"
         },
         "post_samplesheet": {
@@ -40,6 +43,7 @@
           "title": "Post-only samplesheet CSV",
           "description": "CSV with sample,vcf,bam for post-Sarek mode.",
           "mimetype": "text/csv",
+          "format": "file-path",
           "pattern": "^(gs://|/|\\.|[A-Za-z]:\\\\).+\\.csv$"
         }
       }
@@ -49,13 +53,13 @@
       "title": "Post-Sarek annotation resources",
       "type": "object",
       "properties": {
-        "vep_cache": { "type": "string", "pattern": "^(gs://|/|\\.|[A-Za-z]:\\\\).+$" },
-        "vep_fasta": { "type": "string", "pattern": "^(gs://|/|\\.|[A-Za-z]:\\\\).+\\.f(ast)?a(\\.gz)?$" },
-        "gnomad_vcf": { "type": "string", "pattern": "^(gs://|/|\\.|[A-Za-z]:\\\\).+\\.vcf(\\.gz)?$" },
-        "revel_vcf": { "type": "string", "pattern": "^(gs://|/|\\.|[A-Za-z]:\\\\).+\\.(vcf|tsv)(\\.gz)?$" },
-        "alpha_missense_vcf": { "type": "string", "pattern": "^(gs://|/|\\.|[A-Za-z]:\\\\).+\\.(vcf|tsv)(\\.gz)?$" },
-        "clinvar_vcf": { "type": "string", "pattern": "^(gs://|/|\\.|[A-Za-z]:\\\\).+\\.vcf(\\.gz)?$" },
-        "vep_plugins": { "type": "string", "pattern": "^(gs://|/|\\.|[A-Za-z]:\\\\).+$" }
+        "vep_cache": { "type": "string", "format": "file-path", "pattern": "^(gs://|/|\\.|[A-Za-z]:\\\\).+$" },
+        "vep_fasta": { "type": "string", "format": "file-path", "pattern": "^(gs://|/|\\.|[A-Za-z]:\\\\).+\\.f(ast)?a(\\.gz)?$" },
+        "gnomad_vcf": { "type": "string", "format": "file-path", "pattern": "^(gs://|/|\\.|[A-Za-z]:\\\\).+\\.vcf(\\.gz)?$" },
+        "revel_vcf": { "type": "string", "format": "file-path", "pattern": "^(gs://|/|\\.|[A-Za-z]:\\\\).+\\.(vcf|tsv)(\\.gz)?$" },
+        "alpha_missense_vcf": { "type": "string", "format": "file-path", "pattern": "^(gs://|/|\\.|[A-Za-z]:\\\\).+\\.(vcf|tsv)(\\.gz)?$" },
+        "clinvar_vcf": { "type": "string", "format": "file-path", "pattern": "^(gs://|/|\\.|[A-Za-z]:\\\\).+\\.vcf(\\.gz)?$" },
+        "vep_plugins": { "type": "string", "format": "file-path", "pattern": "^(gs://|/|\\.|[A-Za-z]:\\\\).+$" }
       }
     }
   },
