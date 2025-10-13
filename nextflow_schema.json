@@ -13,6 +13,14 @@
       "help_text": "Specify the samplesheet CSV and the output directory.",
       "required": ["samplesheet", "outdir"],
       "properties": {
+        "input": {
+          "type": "string",
+          "description": "Path/URI to the Sarek samplesheet CSV (canonical).",
+          "help_text": "Use a local path like /app/data/sarek_sample_sheet.csv or a GCS path like gs://bucket/path.csv.",
+          "fa_icon": "fas fa-file-csv",
+          "mimetype": "text/csv",
+          "pattern": "^(gs://|/|\\.|[A-Za-z]:\\\\).+\\.csv$"
+        },
         "samplesheet": {
           "type": "string",
           "description": "Path to the CSV file containing sample information.",
