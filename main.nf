@@ -12,11 +12,10 @@ include { POST_SAREK } from './modules/vep.nf'
 
 // ── Params (defaults). Map your samplesheet → Sarek's expected --input ─────────
 params.samplesheet   = params.samplesheet   ?: "${workflow.projectDir}/data/samplesheet.csv"
-params.input         = params.input         ?: params.input  // Sarek expects --input
+params.input = params.input ?: "${workflow.projectDir}/data/sarek_sample_sheet.csv"
 params.outdir        = params.outdir        ?: "${workflow.projectDir}/results/sarek"
-
 params.bed           = params.bed           ?: "${workflow.projectDir}/data/annotated_merged_MANE_deduped.bed"
-params.intervals     = params.intervals     ?: "${workflow.projectDir}/data/chr22_targets.bed"
+//params.intervals     = params.intervals     ?: "${workflow.projectDir}/data/chr22_targets.bed"
 
 // Any extra Sarek params you'll pass on CLI (e.g., --genome, --fasta, --tools, …)
 
