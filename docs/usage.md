@@ -1,134 +1,300 @@
 # Usage Guide
 
-## Overview
+## Pipeline Overview
 
-The Bionl_Lean_Call analyzes genomic sequencing data to identify variants and assess data quality. Simply provide a sample sheet listing your samples and an output directory location. The pipeline processes each sample independently and generates comprehensive reports with variant annotations and quality metrics.
-
-Results include filtered variant calls, detailed quality control statistics, and user-friendly Excel reports suitable for clinical review.
+Bionl_Lean_Call is a flexible pipeline that can run in three modes:
+1. **Mode 1**: Full pipeline starting from FASTQ files (runs Sarek + post-processing)
+2. **Mode 2**: Post-processing from Sarek output directory (automatic file discovery)
+3. **Mode 3**: Post-processing with custom file paths (explicit VCF/BAM specification)
 
 ---
 
-## Input Samplesheet
+## Input Options
 
-Create a CSV file with your sample information:
+### Mode 1: Full Pipeline (FASTQ Input)
+
+Run the complete Sarek variant calling workflow followed by VEP annotation and reporting.
+
+#### Required Parameters
+- `--input`: Path to Sarek-formatted CSV samplesheet with FASTQ file paths
+- `--outdir`: Directory where results will be saved
+
+#### Sample Sheet Format
+
+Create a CSV file with the following columns:
 
 ```csv
 patient,sex,status,sample,fastq_1,fastq_2,lane
-PT001,XX,0,SampleA,/data/sampleA_R1.fastq.gz,/data/sampleA_R2.fastq.gz,1
-PT002,XY,0,SampleB,/data/sampleB_R1.fastq.gz,/data/sampleB_R2.fastq.gz,1
-PT003,XX,1,SampleC,/data/sampleC_R1.fastq.gz,/data/sampleC_R2.fastq.gz,1
+Patient001,XX,0,Sample_A,data/sample_A_R1.fastq.gz,data/sample_A_R2.fastq.gz,1
+Patient002,XY,0,Sample_B,data/sample_B_R1.fastq.gz,data/sample_B_R2.fastq.gz,1
 ```
 
-**Columns:**
-- `patient` - Patient identifier
-- `sex` - Sex (XX for female, XY for male, or 0 if unknown)
-- `status` - Affected status (0 for unaffected, 1 for affected)
-- `sample` - Sample identifier (must be unique)
-- `fastq_1` - Full path to forward reads
-- `fastq_2` - Full path to reverse reads
-- `lane` - Sequencing lane number (typically 1)
+**Column Descriptions:**
+- `patient`: Patient identifier (can be the same for multiple samples)
+- `sex`: Biological sex - use `XX` (female), `XY` (male), or `0` (unknown)
+- `status`: Disease status - `0` (unaffected) or `1` (affected)
+- `sample`: Unique sample identifier
+- `fastq_1`: Full path to R1 FASTQ file
+- `fastq_2`: Full path to R2 FASTQ file
+- `lane`: Sequencing lane number
 
----
-
-## Outputs at a Glance
-
-```
-results/
-├── SampleA/
-│   ├── vcf/
-│   │   └── SampleA.vep_annotated.vcf.gz
-│   ├── qc/
-│   │   ├── SampleA_coverage_summary.txt
-│   │   ├── SampleA_flagstat.txt
-│   │   └── SampleA.mosdepth.summary.txt
-│   └── reports/
-│       ├── SampleA_variants_lean_v1.xlsx
-│       └── SampleA_clinical_report.html
-├── SampleB/
-│   └── ...
-└── SampleC/
-    └── ...
-```
-
-Each sample gets three main folders:
-- **vcf/** - Variant call files with annotations
-- **qc/** - Quality control metrics including:
-  - Coverage statistics at multiple thresholds (10x, 20x, 30x, 50x, 100x)
-  - Coverage gaps below critical thresholds
-  - Alignment quality (total reads, mapped reads, duplicate rates)
-  - Read balance analysis (R1/R2 ratios, forward/reverse strand balance)
-  - Sex determination from X/Y chromosome coverage
-  - Variant quality statistics
-- **reports/** - Excel and HTML summary reports
-
----
-
-## Run
-
-### Via Platform UI
-
-1. Open the pipeline in your platform
-2. **Upload samplesheet**: Select your CSV file
-3. **Set output directory**: Choose where to save results (e.g., `/projects/analysis_2024`)
-4. Click **Start Pipeline**
-
-The platform will show progress as samples are processed.
-
-### Via Command Line
-
-If running outside the platform, use this simple command:
+#### Command Example
 
 ```bash
 nextflow run main.nf \
-  --samplesheet my_samples.csv \
-  --outdir my_results
+  --input samples.csv \
+  --outdir results
 ```
 
 ---
 
-## Notes
+### Mode 2: Post-Processing from Sarek Output Directory
 
-**Understanding Report Messages:**
+Use this mode when you have an existing Sarek results directory. The pipeline automatically discovers VCF and BAM files following Sarek's standard output structure.
 
-When reviewing your Excel reports, you may see statements like:
+#### Required Parameters
+- `--sarek_outdir`: Path to Sarek results directory
+- `--outdir`: Directory where post-processing results will be saved
 
-- **"No variants detected in this category"** - This means no variants matched the specific filters for that section (e.g., no pathogenic variants found). This is often a normal result.
+#### How It Works
 
-- **"No exons below 20x coverage"** - This is good news! It means all target regions have sufficient sequencing depth.
+The pipeline automatically searches for files in the Sarek output structure:
+- **VCF files**: `{sarek_outdir}/variant_calling/*/*/*.vcf.gz`
+- **BAM files**: `{sarek_outdir}/preprocessing/mapped/*/*.sorted.bam`
+- **BAI files**: `{sarek_outdir}/preprocessing/mapped/*/*.sorted.bam.bai`
 
-- **"No coverage gaps identified"** - All areas of interest were adequately sequenced.
+Sample names are extracted from the directory structure.
 
-These "no data" statements typically indicate quality results rather than errors.
+#### Command Example
 
-**Quality Control Files:**
+```bash
+nextflow run main.nf \
+  --sarek_outdir /path/to/sarek/results \
+  --outdir results
+```
 
-The QC folder contains detailed metrics files:
-- **Coverage files** - Per-region coverage at different depth thresholds
-- **Gap files** - Regions below 20x or 30x coverage
-- **Flagstat** - Read alignment summary (total, mapped, duplicates)
-- **Stats** - Detailed BAM statistics
-- **R1/R2 ratios** - Read pair balance per region
-- **Strand balance** - Forward/reverse strand balance per region
-- **Sex check** - Predicted sex from X/Y chromosome coverage
-- **Variant stats** - Transition/transversion ratios and quality distributions
-
-**Report Sections:**
-
-Your Excel report contains multiple tabs:
-- **Sample Summary** - Overall quality metrics (coverage, alignment, ratios)
-- **ACMG SF (P-LP)** - Clinically significant variants
-- **Coverage gaps** - Any regions with low coverage
-- **ACMG SF Genes Coverage** - Coverage statistics for key genes
-- **PASS variants** - All high-quality variants
-
-**Typical Processing Time:**
-
-- Small cohorts (1-3 samples): 2-4 hours
-- Medium cohorts (4-10 samples): 4-8 hours  
-- Large cohorts (>10 samples): Plan accordingly
+**Note:** This mode assumes standard Sarek output structure. If your files are in custom locations, use Mode 3 instead.
 
 ---
 
-## Questions?
+### Mode 3: Post-Processing with Custom File Paths
 
-Contact your bioinformatics support team for assistance with results interpretation or technical issues.
+Use this mode for maximum control when files are not in standard Sarek structure, or when you want to process specific samples with explicit paths.
+
+#### Required Parameters
+- `--post_samplesheet`: Path to CSV file with explicit VCF/BAM/BAI paths
+- `--outdir`: Directory where results will be saved
+
+#### Post Sample Sheet Format
+
+Create a CSV file with the following columns:
+
+```csv
+sample,vcf,bam,bai
+HG003,/path/to/HG003.deepvariant.vcf.gz,/path/to/HG003.sorted.bam,/path/to/HG003.sorted.bam.bai
+HG004,/path/to/HG004.deepvariant.vcf.gz,/path/to/HG004.sorted.bam,/path/to/HG004.sorted.bam.bai
+```
+
+**Column Descriptions:**
+- `sample`: Sample identifier (will be used in output file names)
+- `vcf`: Full path to variant call file (gzipped VCF)
+- `bam`: Full path to aligned BAM file
+- `bai`: Full path to BAM index file
+
+**Important Notes:**
+- All paths must be absolute
+- VCF files should be gzipped (`.vcf.gz`)
+- BAM files must have corresponding index files
+- Files must exist and be readable
+
+#### Command Example
+
+```bash
+nextflow run main.nf \
+  --post_samplesheet data/post_samplesheet.csv \
+  --outdir results
+```
+
+---
+
+## Additional Parameters
+
+### Common Options
+
+- `--genome`: Reference genome (default: `GRCh38`)
+- `--target_bed`: BED file with target regions for coverage analysis
+- `--vep_cache`: Path to VEP cache directory
+- `--vep_plugins`: Path to VEP plugins directory
+
+### Advanced Options
+
+- `--min_coverage`: Minimum coverage threshold for reporting (default: 20)
+- `--min_vaf`: Minimum variant allele frequency (default: 0.2)
+
+### Resource Configuration
+
+- `--max_cpus`: Maximum CPUs to use
+- `--max_memory`: Maximum memory to allocate
+- `--max_time`: Maximum run time
+
+---
+
+## Output Structure
+
+Results are organized by sample:
+
+```
+outdir/
+├── SAMPLE1/
+│   ├── vcf/
+│   │   ├── SAMPLE1.filtered.vcf.gz
+│   │   └── SAMPLE1.annotated.vcf.gz
+│   ├── qc/
+│   │   ├── coverage_summary.txt
+│   │   ├── coverage_per_exon.tsv
+│   │   ├── gaps.tsv
+│   │   └── sample_summary.json
+│   └── reports/
+│       ├── SAMPLE1_acmg_report.xlsx
+│       └── SAMPLE1_report.html
+├── SAMPLE2/
+│   └── ...
+└── pipeline_report.html
+```
+
+### Output Files Description
+
+**VCF Directory:**
+- Filtered and annotated variant calls
+- Includes functional annotations (VEP)
+- ACMG SF gene variants
+
+**QC Directory:**
+- Coverage statistics at 20x, 30x, 50x, 100x thresholds
+- Per-exon coverage metrics
+- Coverage gaps in target regions
+- Sample quality summary (JSON)
+
+**Reports Directory:**
+- Excel report with variant classifications
+- HTML report with interactive visualizations
+- ACMG secondary findings
+
+---
+
+## Complete Usage Examples
+
+### Example 1: Run full pipeline with FASTQ files
+
+```bash
+nextflow run main.nf \
+  --samplesheet samples.csv \
+  --outdir results \
+  --genome GRCh38 \
+  --target_bed regions.bed
+```
+
+### Example 2: Post-process from Sarek output
+
+```bash
+nextflow run main.nf \
+  --sarek_outdir /data/sarek_results \
+  --outdir lean_call_results \
+  --target_bed ACMG_genes.bed
+```
+
+### Example 3: Post-process with explicit file paths
+
+```bash
+nextflow run main.nf \
+  --post_samplesheet post_samples.csv \
+  --outdir results \
+  --vep_cache /ref/vep_cache \
+  --vep_plugins /ref/vep_plugins
+```
+
+### Example 4: Resume a failed run
+
+```bash
+nextflow run main.nf \
+  --samplesheet samples.csv \
+  --outdir results \
+  -resume
+```
+
+---
+
+## Tips and Best Practices
+
+### Choosing the Right Input Mode
+
+- Use **FASTQ input** when:
+  - Starting from raw sequencing data
+  - You need complete control over alignment and variant calling
+  - Running samples for the first time
+
+- Use **post-processing mode** when:
+  - You already have Sarek results
+  - You want to re-annotate variants without re-running alignment
+  - You need to update reports or change filtering criteria
+  - You have BAM/VCF files from compatible pipelines
+
+### File Path Guidelines
+
+- Always use **absolute paths** in sample sheets for reliability
+- Ensure VCF files are **indexed** (`.tbi` for gzipped VCFs)
+- Verify BAM files have corresponding **`.bai` index files**
+- Keep index files in the same directory as the data files
+
+### Performance Optimization
+
+- For large cohorts, consider running samples in batches
+- Use `--max_cpus` and `--max_memory` to control resource usage
+- Enable `-resume` to restart from the last completed step if interrupted
+
+### Quality Control
+
+- Review coverage statistics in the QC directory
+- Check for coverage gaps in critical regions
+- Verify sex determination matches expected values
+- Review Ti/Tv ratios for data quality indicators
+
+---
+
+## Troubleshooting
+
+### Common Issues
+
+**Issue: Sample not found in Sarek output**
+- Solution: Check that sample names match directory names in Sarek output
+- Verify the Sarek pipeline completed successfully
+
+**Issue: VCF or BAM file not found**
+- Solution: Verify all paths in post_samplesheet.csv are absolute paths
+- Ensure files exist and are accessible
+
+**Issue: VEP annotation fails**
+- Solution: Check that VEP cache and plugins are correctly specified
+- Verify cache version matches genome assembly
+
+**Issue: Out of memory errors**
+- Solution: Increase `--max_memory` parameter
+- Consider processing fewer samples at once
+
+---
+
+## Getting Help
+
+If you encounter issues:
+
+1. Check the Nextflow log files in the `work/` directory
+2. Review `.command.log` files in failed task directories
+3. Contact your bioinformatics support team
+4. Email: support@example.com
+
+For bug reports or feature requests, please include:
+- Pipeline version
+- Command used
+- Error messages
+- Relevant log files
+
