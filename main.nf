@@ -18,7 +18,7 @@ params.outdir = params.outdir ?: params.output
 //params.outdir  = params.outdir  ?: "${workflow.projectDir}/results/sarek"
 params.bed     = params.bed     ?: "${workflow.projectDir}/data/annotated_merged_MANE_deduped.bed"
 //params.intervals     = params.intervals     ?: "${workflow.projectDir}/data/chr22_targets.bed"
-
+params.run_sarek = (params.run_sarek instanceof Boolean) ? params.run_sarek : true
 // Any extra Sarek params you'll pass on CLI (e.g., --genome, --fasta, --tools, …)
 // ── Fail fast if missing ──
 if( params.run_sarek ) {
