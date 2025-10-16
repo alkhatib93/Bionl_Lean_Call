@@ -25,7 +25,7 @@ if( params.run_sarek ) {
   if( !params.input )  error "Missing --input (samplesheet CSV) when run_sarek=true"
   if( !params.outdir ) error "Missing --outdir when run_sarek=true"
 } else {
-  if( !params.sarek_outdir ) error "Missing --outdir when run_sarek=false"
+  //if( !params.sarek_outdir ) error "Missing --sarek_outdir when run_sarek=false"
   if( !params.post_samplesheet && !params.sarek_outdir )
     error "When run_sarek=false provide either --post_samplesheet or --sarek_outdir"
 }
@@ -107,6 +107,7 @@ workflow {
         }
         tuple(sample, bam, bai) 
       }
+    
     vcf_ch.view { s, v -> "VCF -> ${s} :: ${v}" }
     bam_ch.view { s, a, i -> "ALN -> ${s} :: ${a} | IDX ${i}" }
     // Optional safety checks
