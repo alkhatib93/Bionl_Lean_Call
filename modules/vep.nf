@@ -190,13 +190,14 @@ process MosdepthRun {
 
   script:
   """
-  #set -euo pipefail
+  echo "[\$(date -Is)] Starting mosdepth for ${sample}" >&2
+  set -euo pipefail
   export MOSDEPTH_Q0=LT20
   export MOSDEPTH_Q1=GE20_LT30
   export MOSDEPTH_Q2=GE30
 
   mosdepth --no-per-base --by $bed --thresholds 10,20,30,50,100 --quantize 0:20:30: --fast-mode $sample $bam
-
+  echo "[\$(date -Is)] Finished mosdepth for ${sample}" >&2
   #python ${params.scriptdir}/summarize_mosdepth.py \
   #  --prefix $sample \
   #  --summary ${sample}.mosdepth.summary.txt \
