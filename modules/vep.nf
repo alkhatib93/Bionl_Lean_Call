@@ -173,24 +173,21 @@ process SamtoolsStats {
   samtools stats $bam > ${sample}_stats.txt
   """
 }
-
-process MosdepthCoverage {
+process MosdepthRun {
   tag "$sample"
   publishDir "${params.outdir}/${sample}/qc", mode: 'copy'
+
   input:
     tuple val(sample), path(bam), path(bai)
     path bed
+
   output:
     tuple val(sample),
       path("${sample}.mosdepth.summary.txt"),
-      path("${sample}.regions.bed.gz"),
       path("${sample}.thresholds.bed.gz"),
       path("${sample}.quantized.bed.gz"),
-      path("${sample}_coverage_summary.overall.txt"),
-      path("${sample}.acmg_gaps_lt20.bed"),
-      path("${sample}.acmg_gaps_lt30.bed"),
-      path("${sample}.acmg_gaps_lt20.annot.bed"),
-      path("${sample}.acmg_gaps_lt30.annot.bed")
+      path("${sample}_coverage_summary.overall.txt")
+
   script:
   """
   set -euo pipefail
@@ -199,22 +196,93 @@ process MosdepthCoverage {
   export MOSDEPTH_Q2=GE30
 
   mosdepth --no-per-base --by $bed --thresholds 10,20,30,50,100 --quantize 0:20:30: --fast-mode $sample $bam
+
   python ${params.scriptdir}/summarize_mosdepth.py \
     --prefix $sample \
     --summary ${sample}.mosdepth.summary.txt \
     --thresholds ${sample}.thresholds.bed.gz \
     --out ${sample}_coverage_summary.overall.txt
-
-  zcat ${sample}.quantized.bed.gz | awk '\$4=="LT20"' | bedtools intersect -wa -a - -b $bed | bedtools sort -i - | bedtools merge -i - > ${sample}.acmg_gaps_lt20.bed
-  zcat ${sample}.quantized.bed.gz | awk '\$4=="LT20" || \$4=="GE20_LT30"' | bedtools intersect -wa -a - -b $bed | bedtools sort -i - | bedtools merge -i - > ${sample}.acmg_gaps_lt30.bed
-
-  bedtools intersect -wao -a ${sample}.acmg_gaps_lt20.bed -b $bed | \
-    awk 'BEGIN{OFS="\t"}{ label = (\$7 != "" && \$7 != ".") ? \$7 : \$4 ":" \$5 "-" \$6; print \$1,\$2,\$3,label}' > ${sample}.acmg_gaps_lt20.annot.bed
-
-  bedtools intersect -wao -a ${sample}.acmg_gaps_lt30.bed -b $bed | \
-    awk 'BEGIN{OFS="\t"}{ label = (\$7 != "" && \$7 != ".") ? \$7 : \$4 ":" \$5 "-" \$6; print \$1,\$2,\$3,label}' > ${sample}.acmg_gaps_lt30.annot.bed
   """
 }
+process CoverageGapsAnnotation {
+  tag "$sample"
+  publishDir "${params.outdir}/${sample}/qc", mode: 'copy'
+
+  input:
+    tuple val(sample),
+      path("${sample}.quantized.bed.gz"),
+      path("${sample}.thresholds.bed.gz")
+    path bed
+
+  output:
+    tuple val(sample),
+      path("${sample}.acmg_gaps_lt20.bed"),
+      path("${sample}.acmg_gaps_lt30.bed"),
+      path("${sample}.acmg_gaps_lt20.annot.bed"),
+      path("${sample}.acmg_gaps_lt30.annot.bed")
+
+  script:
+  """
+  zcat ${sample}.quantized.bed.gz | awk '\$4=="LT20"' \
+    | bedtools intersect -wa -a - -b $bed \
+    | bedtools sort -i - \
+    | bedtools merge -i - > ${sample}.acmg_gaps_lt20.bed
+
+  zcat ${sample}.quantized.bed.gz | awk '\$4=="LT20" || \$4=="GE20_LT30"' \
+    | bedtools intersect -wa -a - -b $bed \
+    | bedtools sort -i - \
+    | bedtools merge -i - > ${sample}.acmg_gaps_lt30.bed
+
+  bedtools intersect -wao -a ${sample}.acmg_gaps_lt20.bed -b $bed \
+    | awk 'BEGIN{OFS="\\t"}{ label = (\$7 != "" && \$7 != ".") ? \$7 : \$4 ":" \$5 "-" \$6; print \$1,\$2,\$3,label}' \
+    > ${sample}.acmg_gaps_lt20.annot.bed
+
+  bedtools intersect -wao -a ${sample}.acmg_gaps_lt30.bed -b $bed \
+    | awk 'BEGIN{OFS="\\t"}{ label = (\$7 != "" && \$7 != ".") ? \$7 : \$4 ":" \$5 "-" \$6; print \$1,\$2,\$3,label}' \
+    > ${sample}.acmg_gaps_lt30.annot.bed
+  """
+}
+//process MosdepthCoverage {
+//  tag "$sample"
+//  publishDir "${params.outdir}/${sample}/qc", mode: 'copy'
+//  input:
+//    tuple val(sample), path(bam), path(bai)
+//    path bed
+//  output:
+//    tuple val(sample),
+//      path("${sample}.mosdepth.summary.txt"),
+//      path("${sample}.regions.bed.gz"),
+//      path("${sample}.thresholds.bed.gz"),
+//      path("${sample}.quantized.bed.gz"),
+//      path("${sample}_coverage_summary.overall.txt"),
+//      path("${sample}.acmg_gaps_lt20.bed"),
+//      path("${sample}.acmg_gaps_lt30.bed"),
+//      path("${sample}.acmg_gaps_lt20.annot.bed"),
+//      path("${sample}.acmg_gaps_lt30.annot.bed")
+//  script:
+//  """
+//  set -euo pipefail
+//  export MOSDEPTH_Q0=LT20
+//  export MOSDEPTH_Q1=GE20_LT30
+//  export MOSDEPTH_Q2=GE30
+//
+//  mosdepth --no-per-base --by $bed --thresholds 10,20,30,50,100 --quantize 0:20:30: --fast-mode $sample $bam
+//  python ${params.scriptdir}/summarize_mosdepth.py \
+//    --prefix $sample \
+//    --summary ${sample}.mosdepth.summary.txt \
+//    --thresholds ${sample}.thresholds.bed.gz \
+//    --out ${sample}_coverage_summary.overall.txt
+//
+//  zcat ${sample}.quantized.bed.gz | awk '\$4=="LT20"' | bedtools intersect -wa -a - -b $bed | bedtools sort -i - | bedtools merge -i - > ${sample}.acmg_gaps_lt20.bed
+//  zcat ${sample}.quantized.bed.gz | awk '\$4=="LT20" || \$4=="GE20_LT30"' | bedtools intersect -wa -a - -b $bed | bedtools sort -i - | bedtools merge -i - > ${sample}.acmg_gaps_lt30.bed
+//
+//  bedtools intersect -wao -a ${sample}.acmg_gaps_lt20.bed -b $bed | \
+//    awk 'BEGIN{OFS="\t"}{ label = (\$7 != "" && \$7 != ".") ? \$7 : \$4 ":" \$5 "-" \$6; print \$1,\$2,\$3,label}' > ${sample}.acmg_gaps_lt20.annot.bed
+//
+//  bedtools intersect -wao -a ${sample}.acmg_gaps_lt30.bed -b $bed | \
+//    awk 'BEGIN{OFS="\t"}{ label = (\$7 != "" && \$7 != ".") ? \$7 : \$4 ":" \$5 "-" \$6; print \$1,\$2,\$3,label}' > ${sample}.acmg_gaps_lt30.annot.bed
+//  """
+//}
 
 process SexCheck {
   tag "$sample"
@@ -352,16 +420,17 @@ workflow POST_SAREK {
     ForwardReverseRatio(bam_sample_ch, bed_ch)
     SamtoolsFlagstat(bam_sample_ch.map { s, bam, bai -> tuple(s, bam) })
     SamtoolsStats(bam_sample_ch.map { s, bam, bai -> tuple(s, bam) })
-    MosdepthCoverage(bam_sample_ch, bed_ch)
+    MosdepthRun(bam_sample_ch, bed_ch)
+    CoverageGapsAnnotation(MosdepthRun.out)
     SexCheck(bam_sample_ch.map { s, bam, bai -> tuple(s, bam) })
     BcftoolsStats(vep_ch.map { s, vcf -> tuple(s, vcf) })
 
     // prepare joins keyed by sample
     exon_cov_ch         = CoverageSummary.out.map { s, summary, per_base -> tuple(s, summary) }
-    gaps20_ch           = MosdepthCoverage.out.map { s, summary, regions, thresholds, quantized, overall, g20, g30, a20, a30 -> tuple(s, a20) }
-    gaps30_ch           = MosdepthCoverage.out.map { s, summary, regions, thresholds, quantized, overall, g20, g30, a20, a30 -> tuple(s, a30) }
-    mosdepth_summary_ch = MosdepthCoverage.out.map { s, summary, regions, thresholds, quantized, overall, g20, g30, a20, a30 -> tuple(s, overall) }
-    thresholds_ch       = MosdepthCoverage.out.map { s, summary, regions, thresholds, quantized, overall, g20, g30, a20, a30 -> tuple(s, thresholds) }
+    gaps20_ch           = CoverageGapsAnnotation.out.map { s, summary, regions, thresholds, quantized, overall, g20, g30, a20, a30 -> tuple(s, a20) }
+    gaps30_ch           = CoverageGapsAnnotation.out.map { s, summary, regions, thresholds, quantized, overall, g20, g30, a20, a30 -> tuple(s, a30) }
+    mosdepth_summary_ch = CoverageGapsAnnotation.out.map { s, summary, regions, thresholds, quantized, overall, g20, g30, a20, a30 -> tuple(s, overall) }
+    thresholds_ch       = CoverageGapsAnnotation.out.map { s, summary, regions, thresholds, quantized, overall, g20, g30, a20, a30 -> tuple(s, thresholds) }
 
     // join all for LeanReport
     lean_input_ch = vep_ch
