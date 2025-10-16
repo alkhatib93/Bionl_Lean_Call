@@ -106,7 +106,8 @@ process CoverageSummary {
     for (k in total)
       printf "%s\\t>=20x:%.2f%%\\t>=30x:%.2f%%\\t>=50x:%.2f%%\\t>=100x:%.2f%%\\n", k,(c20[k]/total[k])*100,(c30[k]/total[k])*100,(c50[k]/total[k])*100,(c100[k]/total[k])*100
   }' ${sample}_coverage_per_base.txt > ${sample}_coverage_summary.txt
-  sort -k1,1V -k1.2,1n -t: -k2,2n ${sample}_coverage_summary.txt > ${sample}_coverage_summary.sorted.txt
+  
+  sort -t: -k1,1 -k2,2n ${sample}_coverage_summary.txt > ${sample}_coverage_summary.sorted.txt
   """
 }
 
