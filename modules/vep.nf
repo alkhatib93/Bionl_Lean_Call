@@ -421,7 +421,7 @@ workflow POST_SAREK {
     SamtoolsFlagstat(bam_sample_ch.map { s, bam, bai -> tuple(s, bam) })
     SamtoolsStats(bam_sample_ch.map { s, bam, bai -> tuple(s, bam) })
     MosdepthRun(bam_sample_ch, bed_ch)
-    CoverageGapsAnnotation(MosdepthRun.out)
+    CoverageGapsAnnotation(MosdepthRun.out, bed_ch)
     SexCheck(bam_sample_ch.map { s, bam, bai -> tuple(s, bam) })
     BcftoolsStats(vep_ch.map { s, vcf -> tuple(s, vcf) })
 
