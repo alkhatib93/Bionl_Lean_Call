@@ -79,7 +79,7 @@ process BedFilterBAM {
     tuple val(sample), path(vcf), path(bam)
     path bed
   output:
-    tuple val(sample), path(vcf), path("${sample}.bed_filtered.bam"), path("${sample}.bed_filtered.bam.bai")
+    tuple val(sample), path("${sample}.bed_filtered.bam"), path("${sample}.bed_filtered.bam.bai")
   script:
   """
   samtools view -L $bed -b -@ 16 $bam -o tmp.bam
@@ -185,25 +185,26 @@ process MosdepthRun {
     tuple val(sample),
       path("${sample}.mosdepth.summary.txt"),
       path("${sample}.thresholds.bed.gz"),
-      path("${sample}.quantized.bed.gz"),
-      path("${sample}_coverage_summary.overall.txt")
+      path("${sample}.quantized.bed.gz")
+      //path("${sample}_coverage_summary.overall.txt")
 
   script:
   """
-  set -euo pipefail
+  #set -euo pipefail
   export MOSDEPTH_Q0=LT20
   export MOSDEPTH_Q1=GE20_LT30
   export MOSDEPTH_Q2=GE30
 
   mosdepth --no-per-base --by $bed --thresholds 10,20,30,50,100 --quantize 0:20:30: --fast-mode $sample $bam
 
-  python ${params.scriptdir}/summarize_mosdepth.py \
-    --prefix $sample \
-    --summary ${sample}.mosdepth.summary.txt \
-    --thresholds ${sample}.thresholds.bed.gz \
-    --out ${sample}_coverage_summary.overall.txt
+  #python ${params.scriptdir}/summarize_mosdepth.py \
+  #  --prefix $sample \
+  #  --summary ${sample}.mosdepth.summary.txt \
+  #  --thresholds ${sample}.thresholds.bed.gz \
+  #  --out ${sample}_coverage_summary.overall.txt
   """
 }
+
 process CoverageGapsAnnotation {
   tag "$sample"
   publishDir "${params.outdir}/${sample}/qc", mode: 'copy'
@@ -413,7 +414,7 @@ workflow POST_SAREK {
 
     // BAM path
     BedFilterBAM(sample_inputs.map { s, vcf, bam, bai -> tuple(s, vcf, bam) }, bed_ch)
-    bam_sample_ch = BedFilterBAM.out.map { s, vcf, bam, bai -> tuple(s, bam, bai) }
+    bam_sample_ch = BedFilterBAM.out.map { s, bam, bai -> tuple(s, bam, bai) }
 
     CoverageSummary(bam_sample_ch.map { s, bam, bai -> tuple(s, bam) }, bed_ch)
     R1R2Ratio(bam_sample_ch, bed_ch)
@@ -421,7 +422,7 @@ workflow POST_SAREK {
     SamtoolsFlagstat(bam_sample_ch.map { s, bam, bai -> tuple(s, bam) })
     SamtoolsStats(bam_sample_ch.map { s, bam, bai -> tuple(s, bam) })
     MosdepthRun(bam_sample_ch, bed_ch)
-    CoverageGapsAnnotation(MosdepthRun.out.map { s, summary, thresholds, quantized, overall -> tuple(s, quantized, thresholds) }, bed_ch)
+    CoverageGapsAnnotation(MosdepthRun.out.map { s, summary, thresholds, quantized -> tuple(s, quantized, thresholds) }, bed_ch)
     SexCheck(bam_sample_ch.map { s, bam, bai -> tuple(s, bam) })
     BcftoolsStats(vep_ch.map { s, vcf -> tuple(s, vcf) })
 
@@ -429,8 +430,8 @@ workflow POST_SAREK {
     exon_cov_ch         = CoverageSummary.out.map { s, summary, per_base -> tuple(s, summary) }
     gaps20_ch           = CoverageGapsAnnotation.out.map { s, g20, g30, a20, a30 -> tuple(s, a20) }
     gaps30_ch           = CoverageGapsAnnotation.out.map { s, g20, g30, a20, a30 -> tuple(s, a30) }
-    mosdepth_summary_ch = MosdepthRun.out.map { s, summary, thresholds, quantized,overall -> tuple(s, summary) }
-    thresholds_ch       = MosdepthRun.out.map { s, summary, thresholds, quantized, overall -> tuple(s, thresholds) }
+    mosdepth_summary_ch = MosdepthRun.out.map { s, summary, thresholds, quantized -> tuple(s, summary) }
+    thresholds_ch       = MosdepthRun.out.map { s, summary, thresholds, quantized -> tuple(s, thresholds) }
 
     // join all for LeanReport
     lean_input_ch = vep_ch
