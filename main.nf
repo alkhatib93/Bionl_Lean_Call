@@ -107,7 +107,8 @@ workflow {
         }
         tuple(sample, bam, bai) 
       }
-
+    vcf_ch.view { s, v -> "VCF -> ${s} :: ${v}" }
+    bam_ch.view { s, a, i -> "ALN -> ${s} :: ${a} | IDX ${i}" }
     // Optional safety checks
     vcf_ch.ifEmpty { error "No VCFs found in ${params.sarek_outdir}/variant_calling/*/*/*.vcf.gz" }
     bam_ch.ifEmpty  { error "No BAMs found in ${params.sarek_outdir}/preprocessing/mapped/*/*.sorted.bam" }
