@@ -21,7 +21,7 @@ process BedFilterVCF {
     tuple val(sample), path(vcf), path(bam)
     path bed
   output:
-    tuple val(sample), path("${sample}.bed_filtered.vcf.gz"), path(bam)
+    tuple val(sample), path("${sample}.bed_filtered.vcf.gz")
   script:
   """
   tabix -p vcf $vcf || bcftools index -t $vcf
@@ -34,9 +34,9 @@ process NormalizeVCF {
   tag "$sample"
   publishDir "${params.outdir}/${sample}/vcf", mode: 'copy'
   input:
-    tuple val(sample), path(vcf), path(bam)
+    tuple val(sample), path(vcf)
   output:
-    tuple val(sample), path("${sample}.normalized.vcf.gz"), path(bam)
+    tuple val(sample), path("${sample}.normalized.vcf.gz")
   script:
   """
   bcftools norm -m -any $vcf -Oz -o ${sample}.normalized.vcf.gz
@@ -48,9 +48,9 @@ process FilterVCF {
   tag "$sample"
   publishDir "${params.outdir}/${sample}/vcf", mode: 'copy'
   input:
-    tuple val(sample), path(vcf), path(bam)
+    tuple val(sample), path(vcf)
   output:
-    tuple val(sample), path("${sample}.filtered.vcf.gz"), path(bam)
+    tuple val(sample), path("${sample}.filtered.vcf.gz")
   script:
   """
   bcftools view -i 'FORMAT/DP >= 20 && QUAL >= 30' $vcf -Oz -o ${sample}.filtered.vcf.gz
@@ -62,7 +62,7 @@ process AddVAF {
   tag "$sample"
   publishDir "${params.outdir}/${sample}/vcf", mode: 'copy'
   input:
-    tuple val(sample), path(vcf), path(bam)
+    tuple val(sample), path(vcf)
   output:
     tuple val(sample), path("${sample}.vaf_added.vcf.gz")
   script:
@@ -106,7 +106,6 @@ process CoverageSummary {
     for (k in total)
       printf "%s\\t>=20x:%.2f%%\\t>=30x:%.2f%%\\t>=50x:%.2f%%\\t>=100x:%.2f%%\\n", k,(c20[k]/total[k])*100,(c30[k]/total[k])*100,(c50[k]/total[k])*100,(c100[k]/total[k])*100
   }' ${sample}_coverage_per_base.txt > ${sample}_coverage_summary.txt
-  
   sort -t: -k1,1 -k2,2n ${sample}_coverage_summary.txt > ${sample}_coverage_summary.sorted.txt
   """
 }
@@ -422,16 +421,16 @@ workflow POST_SAREK {
     SamtoolsFlagstat(bam_sample_ch.map { s, bam, bai -> tuple(s, bam) })
     SamtoolsStats(bam_sample_ch.map { s, bam, bai -> tuple(s, bam) })
     MosdepthRun(bam_sample_ch, bed_ch)
-    CoverageGapsAnnotation(MosdepthRun.out, bed_ch)
+    CoverageGapsAnnotation(MosdepthRun.out.map { s, summary, thresholds, quantized, overall -> tuple(s, quantized, thresholds) }, bed_ch)
     SexCheck(bam_sample_ch.map { s, bam, bai -> tuple(s, bam) })
     BcftoolsStats(vep_ch.map { s, vcf -> tuple(s, vcf) })
 
     // prepare joins keyed by sample
     exon_cov_ch         = CoverageSummary.out.map { s, summary, per_base -> tuple(s, summary) }
-    gaps20_ch           = CoverageGapsAnnotation.out.map { s, summary, regions, thresholds, quantized, overall, g20, g30, a20, a30 -> tuple(s, a20) }
-    gaps30_ch           = CoverageGapsAnnotation.out.map { s, summary, regions, thresholds, quantized, overall, g20, g30, a20, a30 -> tuple(s, a30) }
-    mosdepth_summary_ch = CoverageGapsAnnotation.out.map { s, summary, regions, thresholds, quantized, overall, g20, g30, a20, a30 -> tuple(s, overall) }
-    thresholds_ch       = CoverageGapsAnnotation.out.map { s, summary, regions, thresholds, quantized, overall, g20, g30, a20, a30 -> tuple(s, thresholds) }
+    gaps20_ch           = CoverageGapsAnnotation.out.map { s, g20, g30, a20, a30 -> tuple(s, a20) }
+    gaps30_ch           = CoverageGapsAnnotation.out.map { s, g20, g30, a20, a30 -> tuple(s, a30) }
+    mosdepth_summary_ch = MosdepthRun.out.map { s, summary, thresholds, quantized,overall -> tuple(s, summary) }
+    thresholds_ch       = MosdepthRun.out.map { s, summary, thresholds, quantized, overall -> tuple(s, thresholds) }
 
     // join all for LeanReport
     lean_input_ch = vep_ch
