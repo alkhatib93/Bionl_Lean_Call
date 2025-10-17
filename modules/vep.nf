@@ -192,6 +192,8 @@ process MosdepthRun {
   """
   echo "[\$(date -Is)] Starting mosdepth for ${sample}" >&2
   set -euo pipefail
+  cp $bam ./${sample}.bam
+  cp $bai ./${sample}.bam.bai
   export MOSDEPTH_Q0=LT20
   export MOSDEPTH_Q1=GE20_LT30
   export MOSDEPTH_Q2=GE30
