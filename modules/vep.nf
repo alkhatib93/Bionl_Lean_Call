@@ -18,7 +18,7 @@ process BedFilterVCF {
   tag "$sample"
   publishDir "${params.outdir}/${sample}/vcf", mode: 'copy'
   input:
-    tuple val(sample), path(vcf), path(bam)
+    tuple val(sample), path(vcf)
     path bed
   output:
     tuple val(sample), path("${sample}.bed_filtered.vcf.gz")
