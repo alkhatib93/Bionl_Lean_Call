@@ -331,6 +331,12 @@ process VEP_Annotate {
   publishDir "${params.outdir}/${sample}/vcf", mode: 'copy'
   input:
     tuple val(sample), path(vcf)
+    path vep_cache
+    path vep_plugins
+    path vep_fasta
+    path vep_revel_vcf
+    path vep_alpha_missense_vcf
+    path vep_clinvar_vcf
   output:
     tuple val(sample), path("${sample}.vep.vcf")
   script:
@@ -340,13 +346,13 @@ process VEP_Annotate {
   vep \
     -i INPUT_FOR_VEP.vcf \
     -o ${sample}.vep.vcf \
-    --offline --cache --dir_cache /cache --dir_plugins /plugins \
-    --fasta /cache/\$(basename "${params.vep_fasta}") \
+    --offline --cache --dir_cache $vep_cache --dir_plugins $vep_plugins \
+    --fasta $vep_fasta \
     --assembly GRCh38 --species homo_sapiens \
     --hgvs --symbol --vcf --everything --canonical \
-    --plugin REVEL,/cache/\$(basename "${params.revel_vcf}") \
-    --plugin AlphaMissense,file=/cache/\$(basename "${params.alpha_missense_vcf}"),cols=am_pathogenicity:am_class \
-    --custom /cache/ClinVar/\$(basename "${params.clinvar_vcf}"),ClinVar,vcf,exact,0,CLNSIG,CLNREVSTAT,ALLELEID
+    --plugin REVEL,$vep_revel_vcf \
+    --plugin AlphaMissense,file=$vep_alpha_missense_vcf,cols=am_pathogenicity:am_class \
+    --custom $vep_clinvar_vcf,ClinVar,vcf,exact,0,CLNSIG,CLNREVSTAT,ALLELEID
   """
 }
 
@@ -407,13 +413,24 @@ workflow POST_SAREK {
   main:
     // join per-sample → (s//ample, vcf, bam, bai)
     sample_inputs = vcf_ch.join(bam_ch)
-
+    vep_resources = Channel.of([file(params.vep_cache), file(params.vep_plugins), file(params.vep_fasta), file(params.vep_revel_vcf), file(params.vep_alpha_missense_vcf), file(params.vep_clinvar_vcf)])
     // VCF path
     BedFilterVCF(sample_inputs.map { s, vcf, bam, bai -> tuple(s, vcf, bam) }, bed_ch)
     NormalizeVCF(BedFilterVCF.out)
     FilterVCF(NormalizeVCF.out)
     AddVAF(FilterVCF.out)
-    vep_ch = params.run_vep ? VEP_Annotate(AddVAF.out) : AddVAF.out   // (sample, vcf)
+    vep_inputs = AddVAF.out
+      .combine(vep_resources)
+      .map { sv, res ->
+        def (sample, vcf) = sv
+        def (cacheDir, pluginsDir, fasta, revel, alpha, clinvar) = res
+        tuple(sample, vcf, cacheDir, pluginsDir, fasta, revel, alpha, clinvar)
+      }
+    if (params.run_vep) {
+      vep_ch = VEP_Annotate(vep_inputs)               // expects: (sample, vcf, cacheDir, pluginsDir, fasta, revel, alpha, clinvar)
+    } else {
+      vep_ch = AddVAF.out                    // emits:   (sample, vcf)
+    }
 
     // BAM path
     BedFilterBAM(sample_inputs.map { s, vcf, bam, bai -> tuple(s, vcf, bam) }, bed_ch)
