@@ -331,6 +331,12 @@ process VEP_Annotate {
   publishDir "${params.outdir}/${sample}/vcf", mode: 'copy'
   input:
     tuple val(sample), path(vcf)
+    path vep_cache
+    path vep_plugins
+    path vep_fasta
+    path revel_vcf
+    path alpha_missense_vcf
+    path clinvar_vcf
   output:
     tuple val(sample), path("${sample}.vep.vcf")
   script:
@@ -340,13 +346,14 @@ process VEP_Annotate {
   vep \
     -i INPUT_FOR_VEP.vcf \
     -o ${sample}.vep.vcf \
-    --offline --cache --dir_cache ${params.vep_cache} --dir_plugins ${params.vep_plugins} \
-    --fasta ${params.vep_fasta} \
+    --offline --cache --dir_cache \${PWD}/${vep_cache} \
+    --dir_plugins \${PWD}/${vep_plugins} \
+    --fasta \${PWD}/${vep_fasta} \
     --assembly GRCh38 --species homo_sapiens \
     --hgvs --symbol --vcf --everything --canonical \
-    --plugin REVEL,${params.revel_vcf} \
-    --plugin AlphaMissense,file=${params.alpha_missense_vcf},cols=am_pathogenicity:am_class \
-    --custom ${params.clinvar_vcf},ClinVar,vcf,exact,0,CLNSIG,CLNREVSTAT,ALLELEID
+    --plugin REVEL,\${PWD}/${revel_vcf} \
+    --plugin AlphaMissense,file=\${PWD}/${alpha_missense_vcf},cols=am_pathogenicity:am_class \
+    --custom \${PWD}/${clinvar_vcf},ClinVar,vcf,exact,0,CLNSIG,CLNREVSTAT,ALLELEID
   """
 }
 
@@ -413,7 +420,7 @@ workflow POST_SAREK {
     NormalizeVCF(BedFilterVCF.out)
     FilterVCF(NormalizeVCF.out)
     AddVAF(FilterVCF.out)
-    vep_ch = params.run_vep ? VEP_Annotate(AddVAF.out) : AddVAF.out   // (sample, vcf)
+    vep_ch = params.run_vep ? VEP_Annotate(AddVAF.out, file(params.vep_cache), file(params.vep_plugins), file(params.vep_fasta), file(params.revel_vcf), file(params.alpha_missense_vcf), file(params.clinvar_vcf)) : AddVAF.out  // (sample, vcf)
 
     // BAM path
     BedFilterBAM(sample_inputs.map { s, vcf, bam, bai -> tuple(s, vcf, bam) }, bed_ch)
