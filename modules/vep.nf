@@ -332,11 +332,15 @@ process VEP_Annotate {
   input:
     tuple val(sample), path(vcf)
     path vep_cache
-    path vep_plugins
     path vep_fasta
+    path vep_fasta_fai
     path revel_vcf
+    path revel_vcf_tbi
     path alpha_missense_vcf
+    path alpha_missense_vcf_tbi
     path clinvar_vcf
+    path clinvar_vcf_tbi
+    path vep_plugins
   output:
     tuple val(sample), path("${sample}.vep.vcf")
   script:
@@ -420,7 +424,19 @@ workflow POST_SAREK {
     NormalizeVCF(BedFilterVCF.out)
     FilterVCF(NormalizeVCF.out)
     AddVAF(FilterVCF.out)
-    vep_ch = params.run_vep ? VEP_Annotate(AddVAF.out, file(params.vep_cache), file(params.vep_plugins), file(params.vep_fasta), file(params.revel_vcf), file(params.alpha_missense_vcf), file(params.clinvar_vcf)) : AddVAF.out  // (sample, vcf)
+    vep_ch = params.run_vep ? VEP_Annotate(
+      AddVAF.out, 
+      file(params.vep_cache), 
+      file(params.vep_fasta), 
+      file(params.vep_fasta + ".fai"), 
+      file(params.revel_vcf), 
+      file(params.revel_vcf + ".tbi"), 
+      file(params.alpha_missense_vcf), 
+      file(params.alpha_missense_vcf + ".tbi"), 
+      file(params.clinvar_vcf), 
+      file(params.clinvar_vcf + ".tbi"), 
+      file(params.vep_plugins)
+      ) : AddVAF.out  // (sample, vcf)
 
     // BAM path
     BedFilterBAM(sample_inputs.map { s, vcf, bam, bai -> tuple(s, vcf, bam) }, bed_ch)
