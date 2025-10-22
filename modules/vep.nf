@@ -340,13 +340,13 @@ process VEP_Annotate {
   vep \
     -i INPUT_FOR_VEP.vcf \
     -o ${sample}.vep.vcf \
-    --offline --cache --dir_cache /cache --dir_plugins /plugins \
-    --fasta /cache/\$(basename "${params.vep_fasta}") \
+    --offline --cache --dir_cache ${params.vep_cache} --dir_plugins ${params.vep_plugins} \
+    --fasta ${params.vep_fasta} \
     --assembly GRCh38 --species homo_sapiens \
     --hgvs --symbol --vcf --everything --canonical \
-    --plugin REVEL,/cache/\$(basename "${params.revel_vcf}") \
-    --plugin AlphaMissense,file=/cache/\$(basename "${params.alpha_missense_vcf}"),cols=am_pathogenicity:am_class \
-    --custom /cache/ClinVar/\$(basename "${params.clinvar_vcf}"),ClinVar,vcf,exact,0,CLNSIG,CLNREVSTAT,ALLELEID
+    --plugin REVEL,${params.revel_vcf} \
+    --plugin AlphaMissense,file=${params.alpha_missense_vcf},cols=am_pathogenicity:am_class \
+    --custom ${params.clinvar_vcf},ClinVar,vcf,exact,0,CLNSIG,CLNREVSTAT,ALLELEID
   """
 }
 
