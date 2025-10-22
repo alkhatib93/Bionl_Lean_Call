@@ -18,7 +18,7 @@ process BedFilterVCF {
   tag "$sample"
   publishDir "${params.outdir}/${sample}/vcf", mode: 'copy'
   input:
-    tuple val(sample), path(vcf), path(bam)
+    tuple val(sample), path(vcf)
     path bed
   output:
     tuple val(sample), path("${sample}.bed_filtered.vcf.gz")
@@ -39,7 +39,11 @@ process NormalizeVCF {
     tuple val(sample), path("${sample}.normalized.vcf.gz")
   script:
   """
-  bcftools norm -m -any $vcf -Oz -o ${sample}.normalized.vcf.gz
+  bcftools norm -f ${params.vep_fasta} -m -any $vcf -Oz -o tmp.split.vcf.gz
+  tabix -p vcf tmp.split.vcf.gz
+
+  # Step 2: remove duplicates (now allowed)
+  bcftools norm -d all tmp.split.vcf.gz -Oz -o ${sample}.normalized.vcf.gz
   tabix -p vcf ${sample}.normalized.vcf.gz
   """
 }
@@ -53,7 +57,7 @@ process FilterVCF {
     tuple val(sample), path("${sample}.filtered.vcf.gz")
   script:
   """
-  bcftools view -i 'FORMAT/DP >= 20 && QUAL >= 30' $vcf -Oz -o ${sample}.filtered.vcf.gz
+  bcftools view -i 'FORMAT/DP >= ${params.min_dp} && QUAL >= ${params.min_qual}' $vcf -Oz -o ${sample}.filtered.vcf.gz
   tabix -p vcf ${sample}.filtered.vcf.gz
   """
 }
@@ -186,25 +190,17 @@ process MosdepthRun {
       path("${sample}.mosdepth.summary.txt"),
       path("${sample}.thresholds.bed.gz"),
       path("${sample}.quantized.bed.gz")
-      //path("${sample}_coverage_summary.overall.txt")
 
   script:
   """
   echo "[\$(date -Is)] Starting mosdepth for ${sample}" >&2
   set -euo pipefail
-  cp $bam ./${sample}.bam
-  cp $bai ./${sample}.bam.bai
   export MOSDEPTH_Q0=LT20
   export MOSDEPTH_Q1=GE20_LT30
   export MOSDEPTH_Q2=GE30
 
   mosdepth --no-per-base --by $bed --thresholds 10,20,30,50,100 --quantize 0:20:30: --fast-mode $sample $bam
   echo "[\$(date -Is)] Finished mosdepth for ${sample}" >&2
-  #python ${params.scriptdir}/summarize_mosdepth.py \
-  #  --prefix $sample \
-  #  --summary ${sample}.mosdepth.summary.txt \
-  #  --thresholds ${sample}.thresholds.bed.gz \
-  #  --out ${sample}_coverage_summary.overall.txt
   """
 }
 
@@ -409,7 +405,7 @@ workflow POST_SAREK {
     sample_inputs = vcf_ch.join(bam_ch)
 
     // VCF path
-    BedFilterVCF(sample_inputs.map { s, vcf, bam, bai -> tuple(s, vcf, bam) }, bed_ch)
+    BedFilterVCF(sample_inputs.map { s, vcf, bam, bai -> tuple(s, vcf) }, bed_ch)
     NormalizeVCF(BedFilterVCF.out)
     FilterVCF(NormalizeVCF.out)
     AddVAF(FilterVCF.out)
