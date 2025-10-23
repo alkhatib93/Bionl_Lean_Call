@@ -354,7 +354,7 @@ process VEP_Annotate {
     --dir_plugins \${PWD}/${vep_plugins} \
     --fasta \${PWD}/${vep_fasta} \
     --assembly GRCh38 --species homo_sapiens \
-    --hgvs --symbol --vcf --everything --canonical \
+    --hgvs --symbol --vcf --everything --canonical --merged \
     --plugin REVEL,\${PWD}/${revel_vcf} \
     --plugin AlphaMissense,file=\${PWD}/${alpha_missense_vcf},cols=am_pathogenicity:am_class \
     --custom \${PWD}/${clinvar_vcf},ClinVar,vcf,exact,0,CLNSIG,CLNREVSTAT,ALLELEID
