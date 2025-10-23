@@ -334,6 +334,7 @@ process VEP_Annotate {
     path vep_cache
     path vep_fasta
     path vep_fasta_fai
+    path vep_fasta_gzi
     path revel_vcf
     path revel_vcf_tbi
     path alpha_missense_vcf
@@ -350,14 +351,14 @@ process VEP_Annotate {
   vep \
     -i INPUT_FOR_VEP.vcf \
     -o ${sample}.vep.vcf \
-    --offline --cache --dir_cache \${PWD}/${vep_cache} \
-    --dir_plugins \${PWD}/${vep_plugins} \
-    --fasta \${PWD}/${vep_fasta} \
+    --offline --cache --dir_cache ${vep_cache} \
+    --dir_plugins ${vep_plugins} \
+    --fasta ${vep_fasta} \
     --assembly GRCh38 --species homo_sapiens \
     --hgvs --symbol --vcf --everything --canonical --merged \
-    --plugin REVEL,\${PWD}/${revel_vcf} \
-    --plugin AlphaMissense,file=\${PWD}/${alpha_missense_vcf},cols=am_pathogenicity:am_class \
-    --custom \${PWD}/${clinvar_vcf},ClinVar,vcf,exact,0,CLNSIG,CLNREVSTAT,ALLELEID
+    --plugin REVEL,${revel_vcf} \
+    --plugin AlphaMissense,file=${alpha_missense_vcf},cols=am_pathogenicity:am_class \
+    --custom ${clinvar_vcf},ClinVar,vcf,exact,0,CLNSIG,CLNREVSTAT,ALLELEID
   """
 }
 
@@ -429,6 +430,7 @@ workflow POST_SAREK {
       file(params.vep_cache), 
       file(params.vep_fasta), 
       file(params.vep_fasta + ".fai"), 
+      file(params.vep_fasta + ".gzi"), 
       file(params.revel_vcf), 
       file(params.revel_vcf + ".tbi"), 
       file(params.alpha_missense_vcf), 
