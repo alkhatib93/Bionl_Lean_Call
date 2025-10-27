@@ -377,7 +377,6 @@ process LeanReport {
   script:
   """
   mkdir -p ${sample}_report
-  pip install --no-cache-dir pandas cyvcf2 >/dev/null 2>&1
   python ${params.scriptdir}/generate_lean_report_org.py \
     $vcf $exon_cov $r1r2 $frstrand ${sample}_variants_lean.xlsx \
     --sample-id ${sample} --assay WES --build GRCh38 \
