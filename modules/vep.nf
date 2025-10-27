@@ -334,7 +334,6 @@ process VEP_Annotate {
     path vep_cache
     path vep_fasta
     path vep_fasta_fai
-    path vep_fasta_gzi
     path revel_vcf
     path revel_vcf_tbi
     path alpha_missense_vcf
@@ -430,7 +429,6 @@ workflow POST_SAREK {
       file(params.vep_cache), 
       file(params.vep_fasta), 
       file(params.vep_fasta + ".fai"), 
-      file(params.vep_fasta + ".gzi"), 
       file(params.revel_vcf), 
       file(params.revel_vcf + ".tbi"), 
       file(params.alpha_missense_vcf), 
