@@ -639,7 +639,7 @@ for var in vcf:
         except: pass
 
     gene = transcript = hgvsc = hgvsp = consequence = exon = intron = impact = None
-    clinvar = alleleid = gnomad_af = revel = spliceai = cadd = None
+    clinvar = alleleid = gnomad_af = revel = spliceai = cadd = clinvar_review_status = stars = am_pathogenicity = am_class = None
     ann = {}
     if csq_format:
         ann = select_csq_entry(var, csq_format) or {}
@@ -664,7 +664,7 @@ for var in vcf:
     cov = get_exon_cov(chrom, pos)
     r1r2 = get_r1r2(chrom, pos)
     fr = get_fr(chrom, pos)
-    revstat = clinvar_review_status
+    revstat = clinvar_review_status if clinvar_review_status is not None else ""
     stars = clinvar_stars_from_revstat(revstat)
     
     try:
