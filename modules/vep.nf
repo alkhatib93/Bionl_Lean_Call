@@ -9,7 +9,7 @@ params.template_dir= params.template_dir?: "${workflow.projectDir}/scripts/templ
 
 params.run_vep     = params.run_vep     ?: true
 params.min_dp   = params.min_dp   ?: 20
-params.min_qual = params.min_qual ?: 30
+params.min_qual = params.min_qual ?: 20
 // VEP resource params expected from main/config:
 // params.vep_fasta, params.revel_vcf, params.alpha_missense_vcf, params.clinvar_vcf
 
@@ -378,7 +378,7 @@ process LeanReport {
     tuple val(sample), path("${sample}_variants_lean.xlsx")
   script:
   """
-  pip install --no-cache-dir pandas cyvcf2 >/dev/null 2>&1
+  #pip install --no-cache-dir pandas cyvcf2
   mkdir -p ${sample}_report
   python ${params.scriptdir}/generate_lean_report_org.py \
     $vcf $exon_cov $r1r2 $frstrand ${sample}_variants_lean.xlsx \
