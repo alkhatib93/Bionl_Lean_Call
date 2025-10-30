@@ -378,7 +378,7 @@ process LeanReport {
     tuple val(sample), path("${sample}_variants_lean.xlsx")
   script:
   """
-  #pip install --no-cache-dir pandas cyvcf2
+  pip install --no-cache-dir pandas cyvcf2
   mkdir -p ${sample}_report
   python ${params.scriptdir}/generate_lean_report_org.py \
     $vcf $exon_cov $r1r2 $frstrand ${sample}_variants_lean.xlsx \
