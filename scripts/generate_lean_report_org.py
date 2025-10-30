@@ -551,6 +551,13 @@ def select_csq_entry(var, csq_format, prefer_clinvar=True):
 
     return (rows_alt[0] if rows_alt else rows[0]) if rows else None
 
+def _num_or_none(x):
+    try:
+        if x is None or x == ".":
+            return None
+        return float(x)
+    except Exception:
+        return None
 # -------------------------
 # Coverage summary loader (your format)
 # -------------------------
@@ -625,7 +632,7 @@ for var in vcf:
     chrom, pos, ref = var.CHROM, var.POS, var.REF
     alt = ",".join(var.ALT) if var.ALT else ""
     filt = var.FILTER or "PASS"
-
+    qual = _num_or_none(getattr(var, "QUAL", None))
     dp = var.format("DP")[0][0] if "DP" in var.FORMAT else var.INFO.get("DP")
     vaf = var.format("VAF")[0][0] if "VAF" in var.FORMAT else None
     gq  = var.format("GQ")[0][0] if "GQ" in var.FORMAT else None
@@ -681,6 +688,7 @@ for var in vcf:
         "Chrom": chrom, "Pos": pos, "Ref": ref, "Alt": alt,
         "Variant": f"{chrom}:{pos}:{ref}:{alt}",
         "FILTER": filt,
+        "QUAL": qual,
         "Gene": gene, "Transcript": transcript,
         "Consequence": consequence, "Impact": impact,
         "Exon": exon, "Intron": intron,
@@ -768,7 +776,7 @@ with pd.ExcelWriter(args.xlsx_out) as xw:
     if sf_genes:
         acmg = acmg[acmg["Gene"].isin(sf_genes)]
     acmg_cols = [
-        "Gene","Variant","HGVSc","HGVSp","Zygosity","GT","AD_Ref","AD_Alt","DP","GQ",
+        "Gene","Variant","HGVSc","HGVSp","Zygosity","GT","AD_Ref","AD_Alt","DP","GQ","QUAL",
         "Consequence","Exon","Intron","ClinVar","ClinVar_ReviewStatus","ClinVar_Stars","ClinVar_StarsGlyph","ClinVar_Link","gnomAD_AF","REVEL","SpliceAI","CADD","AM_Pathogenicity","AM_Class","HGVS_full"
     ]
     acmg[acmg_cols].to_excel(xw, index=False, sheet_name="ACMG SF (P-LP)")
@@ -818,7 +826,7 @@ with pd.ExcelWriter(args.xlsx_out) as xw:
 
     # 5) PASS variant table
     pass_cols = [
-        "Variant","Gene","HGVSc","HGVSp","Transcript","Consequence","GT","Zygosity","AD_Ref","AD_Alt","DP","GQ",
+        "Variant","Gene","HGVSc","HGVSp","Transcript","Consequence","GT","Zygosity","AD_Ref","AD_Alt","DP","GQ","QUAL",
         "FILTER","VAF","gnomAD_AF","ClinVar","ClinVar_ReviewStatus","ClinVar_Stars","ClinVar_StarsGlyph","REVEL","SpliceAI","CADD","AM_Pathogenicity","AM_Class","HGVS_full"
     ]
     df[df["FILTER"]=="PASS"][pass_cols].to_excel(xw, index=False, sheet_name="PASS variants")

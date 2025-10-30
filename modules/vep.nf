@@ -8,6 +8,8 @@ params.scriptdir   = params.scriptdir   ?: "${workflow.projectDir}/scripts"
 params.template_dir= params.template_dir?: "${workflow.projectDir}/scripts/template-files"
 
 params.run_vep     = params.run_vep     ?: true
+params.min_dp   = params.min_dp   ?: 20
+params.min_qual = params.min_qual ?: 30
 // VEP resource params expected from main/config:
 // params.vep_fasta, params.revel_vcf, params.alpha_missense_vcf, params.clinvar_vcf
 
@@ -53,7 +55,7 @@ process FilterVCF {
     tuple val(sample), path("${sample}.filtered.vcf.gz")
   script:
   """
-  bcftools view -i 'FORMAT/DP >= 20 && QUAL >= 30' $vcf -Oz -o ${sample}.filtered.vcf.gz
+  bcftools view -i 'FORMAT/DP >= ${params.min_dp} && QUAL >= ${params.min_qual}' $vcf -Oz -o ${sample}.filtered.vcf.gz
   tabix -p vcf ${sample}.filtered.vcf.gz
   """
 }
@@ -376,6 +378,7 @@ process LeanReport {
     tuple val(sample), path("${sample}_variants_lean.xlsx")
   script:
   """
+  pip install --no-cache-dir pandas cyvcf2 >/dev/null 2>&1
   mkdir -p ${sample}_report
   python ${params.scriptdir}/generate_lean_report_org.py \
     $vcf $exon_cov $r1r2 $frstrand ${sample}_variants_lean.xlsx \
