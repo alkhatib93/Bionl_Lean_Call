@@ -9,7 +9,7 @@ params.template_dir= params.template_dir?: "${workflow.projectDir}/scripts/templ
 
 params.run_vep     = params.run_vep     ?: true
 params.min_dp   = params.min_dp   ?: 20
-params.min_qual = params.min_qual ?: 20
+params.min_qual = params.min_qual ?: 30
 // VEP resource params expected from main/config:
 // params.vep_fasta, params.revel_vcf, params.alpha_missense_vcf, params.clinvar_vcf
 
@@ -41,7 +41,7 @@ process NormalizeVCF {
     tuple val(sample), path("${sample}.normalized.vcf.gz")
   script:
   """
-  bcftools norm -m -any $vcf -Oz -o ${sample}.normalized.vcf.gz
+  bcftools norm -m- -f ${params.vep_fasta} $vcf -Oz -o ${sample}.normalized.vcf.gz
   tabix -p vcf ${sample}.normalized.vcf.gz
   """
 }
