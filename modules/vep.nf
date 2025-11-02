@@ -374,12 +374,13 @@ process LeanReport {
           path(sex_check),
           path(gaps20), path(gaps30),
           path(thresholds)
+    path script
   output:
     tuple val(sample), path("${sample}_variants_lean.xlsx")
   script:
   """
   mkdir -p ${sample}_report
-  python ${params.scriptdir}/generate_lean_report_org.py \
+  python ${script} \
     $vcf $exon_cov $r1r2 $frstrand ${sample}_variants_lean.xlsx \
     --sample-id ${sample} --assay WES --build GRCh38 \
     --flagstat ${flagstat} --stats ${stats} \
@@ -395,15 +396,17 @@ process GENERATE_ACMG_REPORT {
   publishDir "${params.outdir}/${sample}/reports", mode: 'copy'
   input:
     tuple val(sample), path(excel_file)
+    path script
+    path template_dir
   output:
     tuple val(sample), path("${sample}_report/${sample}_clinical_report.html")
   script:
   """
   #mkdir -p ${sample}_report
-  python ${params.scriptdir}/python-skeleton/generate_report.py \
+  python ${script} \
     ${excel_file} ${sample}_report \
     --sample-id ${sample} \
-    --template-dir ${params.template_dir} \
+    --template-dir ${template_dir} \
     --format html
   """
 }
@@ -420,7 +423,9 @@ workflow POST_SAREK {
   main:
     // join per-sample → (s//ample, vcf, bam, bai)
     sample_inputs = vcf_ch.join(bam_ch)
-
+    script_ch = Channel.fromPath("${params.scriptdir}/generate_lean_report_org.py")
+    report_script_ch = Channel.fromPath("${params.scriptdir}/python-skeleton/generate_report.py")
+    template_dir_ch = Channel.fromPath("${params.template_dir}", type: 'dir')
     // VCF path
     BedFilterVCF(sample_inputs.map { s, vcf, bam, bai -> tuple(s, vcf) }, bed_ch)
     NormalizeVCF(BedFilterVCF.out)
@@ -473,7 +478,6 @@ workflow POST_SAREK {
       .join(gaps20_ch)
       .join(gaps30_ch)
       .join(thresholds_ch)
-
-    LeanReport(lean_input_ch)
-    GENERATE_ACMG_REPORT(LeanReport.out)
+    LeanReport(lean_input_ch, script_ch)
+    GENERATE_ACMG_REPORT(LeanReport.out, report_script_ch, template_dir_ch)
 }
