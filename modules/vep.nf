@@ -396,14 +396,14 @@ process GENERATE_ACMG_REPORT {
   publishDir "${params.outdir}/${sample}/reports", mode: 'copy'
   input:
     tuple val(sample), path(excel_file)
-    path script
+    path python_skeleton
     path template_dir
   output:
     tuple val(sample), path("${sample}_report/${sample}_clinical_report.html")
   script:
   """
   #mkdir -p ${sample}_report
-  python ${script} \
+  python ${python_skeleton}/generate_report.py \
     ${excel_file} ${sample}_report \
     --sample-id ${sample} \
     --template-dir ${template_dir} \
@@ -424,7 +424,7 @@ workflow POST_SAREK {
     // join per-sample → (s//ample, vcf, bam, bai)
     sample_inputs = vcf_ch.join(bam_ch)
     script_ch = Channel.fromPath("${params.scriptdir}/generate_lean_report_org.py")
-    report_script_ch = Channel.fromPath("${params.scriptdir}/python-skeleton/generate_report.py")
+    report_script_ch = Channel.fromPath("${params.scriptdir}/python-skeleton/", type: 'dir')
     template_dir_ch = Channel.fromPath("${params.template_dir}", type: 'dir')
     // VCF path
     BedFilterVCF(sample_inputs.map { s, vcf, bam, bai -> tuple(s, vcf) }, bed_ch)
