@@ -37,12 +37,11 @@ process NormalizeVCF {
   publishDir "${params.outdir}/${sample}/vcf", mode: 'copy'
   input:
     tuple val(sample), path(vcf)
-    path vep_fasta
   output:
     tuple val(sample), path("${sample}.normalized.vcf.gz")
   script:
   """
-  bcftools norm -m- -f $vep_fasta $vcf -Oz -o ${sample}.normalized.vcf.gz
+  bcftools norm -m -any $vcf -Oz -o ${sample}.normalized.vcf.gz
   tabix -p vcf ${sample}.normalized.vcf.gz
   """
 }
@@ -424,7 +423,7 @@ workflow POST_SAREK {
 
     // VCF path
     BedFilterVCF(sample_inputs.map { s, vcf, bam, bai -> tuple(s, vcf) }, bed_ch)
-    NormalizeVCF(BedFilterVCF.out, file(params.vep_fasta))
+    NormalizeVCF(BedFilterVCF.out)
     FilterVCF(NormalizeVCF.out)
     AddVAF(FilterVCF.out)
     vep_ch = params.run_vep ? VEP_Annotate(
