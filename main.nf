@@ -36,10 +36,11 @@ workflow COLLECT_SAREK_OUTPUTS {
     outdir     // The output directory to search
 
   main:
+    def isGCS = outdir.toString().startsWith('gs://')
     // Use trigger to wait, then collect files
     vcf_ch = trigger
       .flatMap { 
-        file("${outdir}/variant_calling/*/*/*.vcf.gz", checkIfExists: false)
+        file("${outdir}/variant_calling/*/*/*.vcf.gz", checkIfExists: isGCS)
       }
       .filter { vcf -> 
         vcf.name.endsWith('.vcf.gz') && 
@@ -50,7 +51,7 @@ workflow COLLECT_SAREK_OUTPUTS {
 
     bam_ch = trigger
       .flatMap { 
-        file("${outdir}/preprocessing/mapped/*/*.sorted.bam", checkIfExists: false)
+        file("${outdir}/preprocessing/mapped/*/*.sorted.bam", checkIfExists: isGCS)
       }
       .map { bam -> 
         def sample = bam.parent.name
@@ -80,9 +81,10 @@ workflow {
   if (params.sarek_outdir) {
     log.info ">>> Skipping Sarek run, using existing results in ${params.sarek_outdir}"
 
+    def isGCS = params.sarek_outdir.toString().startsWith('gs://')
     // ── Collect VCFs ──
     vcf_ch = Channel
-      .fromPath("${params.sarek_outdir}/variant_calling/*/*/*.vcf.gz", checkIfExists: true)
+      .fromPath("${params.sarek_outdir}/variant_calling/*/*/*.vcf.gz", checkIfExists: isGCS)
       .filter { vcf -> 
         vcf.name.endsWith('.vcf.gz') && 
         !vcf.name.contains('.g.vcf.gz') && 
@@ -95,7 +97,7 @@ workflow {
 
     // ── Collect BAMs with BAI ──
     bam_ch = Channel
-      .fromPath("${params.sarek_outdir}/preprocessing/mapped/*/*.sorted.bam", checkIfExists: true)
+      .fromPath("${params.sarek_outdir}/preprocessing/mapped/*/*.sorted.bam", checkIfExists: isGCS)
       .map { bam -> 
         def sample = bam.parent.name
         def bai = file("${bam}.bai")
