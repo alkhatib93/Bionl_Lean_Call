@@ -28,6 +28,8 @@ if( params.run_sarek ) {
   //if( !params.sarek_outdir ) error "Missing --sarek_outdir when run_sarek=false"
   if( !params.post_samplesheet && !params.sarek_outdir )
     error "When run_sarek=false provide either --post_samplesheet or --sarek_outdir"
+  if( params.post_samplesheet && params.sarek_outdir )
+    error "Cannot provide both --post_samplesheet and --sarek_outdir. Choose one."
 }
 // ── Helper workflow to collect Sarek outputs ────────────────────────────────────
 workflow COLLECT_SAREK_OUTPUTS {
@@ -80,7 +82,7 @@ workflow {
 
   if (params.sarek_outdir) {
     log.info ">>> Skipping Sarek run, using existing results in ${params.sarek_outdir}"
-
+    log.info ">>> Checking if ${params.sarek_outdir} is a GCS bucket"
     def isGCS = params.sarek_outdir.toString().startsWith('gs://')
     // ── Collect VCFs ──
     vcf_ch = Channel

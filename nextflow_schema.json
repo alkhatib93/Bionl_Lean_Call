@@ -33,13 +33,13 @@
         "sarek_outdir": {
           "type": "string",
           "title": "Existing Sarek results directory",
-          "description": "Use a pre-run Sarek results folder if run_sarek=false.",
+          "description": "Use a pre-run Sarek results folder if run_sarek=false. Cannot be used with post_samplesheet.",
           "format": "directory-path"
         },
         "post_samplesheet": {
           "type": "string",
           "title": "Post-only samplesheet CSV",
-          "description": "CSV with sample,vcf,bam for post-Sarek mode.",
+          "description": "CSV with sample,vcf,bam for post-Sarek mode. Cannot be used with sarek_outdir.",
           "mimetype": "text/csv",
           "format": "file-path",
           "pattern": "^\\S*\\.csv$"
@@ -64,7 +64,13 @@
 
   "allOf": [
     { "$ref": "#/$defs/io_options" },
-    { "$ref": "#/$defs/post_sarek" }
+    { "$ref": "#/$defs/post_sarek" },
+    {
+      "not": {
+        "required": ["post_samplesheet", "sarek_outdir"],
+        "description": "Cannot provide both post_samplesheet and sarek_outdir"
+      }
+    }
   ],
 
   "if": {
@@ -76,11 +82,19 @@
   },
   "else": {
     "required": ["outdir"],
-    "anyOf": [
-      { "required": ["post_samplesheet"] },
-      { "required": ["sarek_outdir"] }
+    "oneOf": [
+      {
+        "required": ["post_samplesheet"],
+        "not": { "required": ["sarek_outdir"] },
+        "description": "Provide post_samplesheet without sarek_outdir"
+      },
+      {
+        "required": ["sarek_outdir"],
+        "not": { "required": ["post_samplesheet"] },
+        "description": "Provide sarek_outdir without post_samplesheet"
+      }
     ],
-    "description": "When run_sarek=false you must provide outdir and either post_samplesheet or sarek_outdir."
+    "description": "When run_sarek=false you must provide outdir and either post_samplesheet OR sarek_outdir (not both)."
   },
 
   "additionalProperties": true
