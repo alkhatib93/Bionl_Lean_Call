@@ -80,48 +80,64 @@ workflow {
   if (!bedFile?.exists()) error "BED file not found: ${params.bed}"
   bed_ch = Channel.value(bedFile)
 
-  if (params.sarek_outdir) {
-    log.info ">>> Skipping Sarek run, using existing results in ${params.sarek_outdir}"
-    log.info ">>> Checking if ${params.sarek_outdir} is a GCS bucket"
-    def isGCS = params.sarek_outdir.toString().startsWith('gs://')
-    // ── Collect VCFs ──
-    vcf_ch = Channel
-      .fromPath("${params.sarek_outdir}/variant_calling/*/*/*.vcf.gz", checkIfExists: isGCS)
-      .filter { vcf -> 
-        vcf.name.endsWith('.vcf.gz') && 
-        !vcf.name.contains('.g.vcf.gz') && 
-        !vcf.name.endsWith('.tbi') 
-      }
-      .map { vcf -> 
-        def sample = vcf.parent.name
-        tuple(sample, vcf) 
-      }
+    if (params.sarek_outdir) {
+      log.info ">>> Skipping Sarek run, using existing results in ${params.sarek_outdir}"
 
-    // ── Collect BAMs with BAI ──
-    bam_ch = Channel
-      .fromPath("${params.sarek_outdir}/preprocessing/mapped/*/*.sorted.bam", checkIfExists: isGCS)
-      .map { bam -> 
-        def sample = bam.parent.name
-        def bai = file("${bam}.bai")
-        if (!bai.exists()) {
-          bai = file("${bam.parent}/${bam.baseName}.bai")
+      def isGCS = params.sarek_outdir.startsWith('gs://')
+
+      // ── Collect VCFs ──
+      vcf_ch = Channel
+        .fromPath("${params.sarek_outdir}/variant_calling/*/*/*.vcf.gz", checkIfExists: !isGCS)
+        .filter { vcf -> 
+          vcf.name.endsWith('.vcf.gz') && 
+          !vcf.name.contains('.g.vcf.gz') && 
+          !vcf.name.endsWith('.tbi') 
         }
-        if (!bai.exists()) {
-          error "BAM index not found for ${bam}. Expected ${bam}.bai or ${bam.baseName}.bai"
+        .map { vcf -> 
+          def sample = vcf.parent.name
+          tuple(sample, vcf) 
         }
-        tuple(sample, bam, bai) 
-      }
-    
-    vcf_ch.view { s, v -> "VCF -> ${s} :: ${v}" }
-    bam_ch.view { s, a, i -> "ALN -> ${s} :: ${a} | IDX ${i}" }
-    // Optional safety checks
-    vcf_ch.ifEmpty { error "No VCFs found in ${params.sarek_outdir}/variant_calling/*/*/*.vcf.gz" }
-    bam_ch.ifEmpty  { error "No BAMs found in ${params.sarek_outdir}/preprocessing/mapped/*/*.sorted.bam" }
 
-    // ── Run post-Sarek steps ──
-    POST_SAREK(vcf_ch, bam_ch, bed_ch)
+      // ── Collect BAMs with BAI (GCS-aware) ──
+      bam_ch = Channel
+        .fromPath("${params.sarek_outdir}/preprocessing/mapped/*/*.sorted.bam", checkIfExists: !isGCS)
+        .map { bam -> 
+          def sample = bam.parent.name
+          // DEBUG: Print the actual path
+          println "DEBUG: bam = ${bam}"
+          println "DEBUG: bam.toString() = ${bam.toString()}"
+          println "DEBUG: bam.class = ${bam.class}"
+          // Construct BAI path from BAM path
+          def bamPath = bam.toString()
+          def baiPath = "${bamPath}.bai"
 
-  } else if (params.post_samplesheet) {
+          def bai
+          if (isGCS) {
+            // For GCS, just create a path object without validation
+            bai = file(baiPath, checkIfExists: false)
+          } else {
+            // For local files, validate existence
+            bai = file(baiPath)
+            if (!bai.exists()) {
+              bai = file("${bam.parent}/${bam.baseName}.bai")
+              if (!bai.exists()) {
+                error "BAM index not found for ${bam}. Expected ${baiPath}"
+              }
+            }
+          }
+
+          tuple(sample, bam, bai) 
+        }
+
+      vcf_ch.view { s, v -> "VCF -> ${s} :: ${v}" }
+      bam_ch.view { s, a, i -> "ALN -> ${s} :: ${a} | IDX ${i}" }
+
+      vcf_ch.ifEmpty { error "No VCFs found in ${params.sarek_outdir}/variant_calling/*/*/*.vcf.gz" }
+      bam_ch.ifEmpty  { error "No BAMs found in ${params.sarek_outdir}/preprocessing/mapped/*/*.sorted.bam" }
+
+      POST_SAREK(vcf_ch, bam_ch, bed_ch)
+
+} else if (params.post_samplesheet) {
     log.info ">>> Running post-Sarek from custom samplesheet ${params.post_samplesheet}"
 
     // Read samplesheet and validate files exist
