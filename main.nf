@@ -39,10 +39,11 @@ workflow COLLECT_SAREK_OUTPUTS {
 
   main:
     def isGCS = outdir.toString().startsWith('gs://')
+    
     // Use trigger to wait, then collect files
     vcf_ch = trigger
       .flatMap { 
-        file("${outdir}/variant_calling/*/*/*.vcf.gz", checkIfExists: isGCS)
+        file("${outdir}/variant_calling/*/*/*.vcf.gz", checkIfExists: !isGCS)
       }
       .filter { vcf -> 
         vcf.name.endsWith('.vcf.gz') && 
@@ -53,17 +54,29 @@ workflow COLLECT_SAREK_OUTPUTS {
 
     bam_ch = trigger
       .flatMap { 
-        file("${outdir}/preprocessing/mapped/*/*.sorted.bam", checkIfExists: isGCS)
+        file("${outdir}/preprocessing/mapped/*/*.sorted.bam", checkIfExists: !isGCS)
       }
       .map { bam -> 
         def sample = bam.parent.name
-        def bai = file("${bam}.bai")
-        if (!bai.exists()) {
-          bai = file("${bam.parent}/${bam.baseName}.bai")
+        println "DEBUG: bam = ${bam}"
+        println "DEBUG: bam.toString() = ${bam.toString()}"
+        println "DEBUG: bam.class = ${bam.class}"
+        def bamPath = bam.toString()
+        def baiPath = "${bamPath}.bai"
+        
+        def bai
+        if (isGCS) {
+          bai = file(baiPath, checkIfExists: false)
+        } else {
+          bai = file(baiPath)
+          if (!bai.exists()) {
+            bai = file("${bam.parent}/${bam.baseName}.bai")
+            if (!bai.exists()) {
+              error "BAM index not found for ${bam}"
+            }
+          }
         }
-        if (!bai.exists()) {
-          error "BAM index not found for ${bam}"
-        }
+        
         tuple(sample, bam, bai)
       }
 
