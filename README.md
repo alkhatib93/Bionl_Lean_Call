@@ -10,10 +10,10 @@ The pipeline can run in three modes:
 
 ### Mode 1: Full Pipeline (from FASTQ files)
 
-Run the complete Sarek variant calling pipeline followed by post-processing.
+Run the complete variant calling pipeline followed by post-processing.
 
 **Required parameters:**
-- `--input`: Sarek samplesheet CSV
+- `--input`: Samplesheet CSV
 - `--outdir`: Output directory
 
 **Example samplesheet:**
@@ -34,17 +34,17 @@ The CSV should include:
 - **fastq_2**: Path to reverse reads file
 - **lane**: Sequencing lane number
 
-### Mode 2: Post-Processing from Sarek Output Directory
+### Mode 2: Post-Processing from Variant Calling Output Directory
 
-Use existing Sarek results (automatic file discovery).
+Use existing variant calling results (automatic file discovery).
 
 **Required parameters:**
-- `--sarek_outdir`: Path to Sarek results directory
+- `--variant_calling_outdir`: Path to variant calling results directory
 - `--outdir`: Output directory
 
-The pipeline automatically finds VCF and BAM files in the Sarek output structure:
-- VCF files: `{sarek_outdir}/variant_calling/*/*/*.vcf.gz`
-- BAM files: `{sarek_outdir}/preprocessing/mapped/*/*.sorted.bam`
+The pipeline automatically finds VCF and BAM files in the variant calling output structure:
+- VCF files: `{variant_calling_outdir}/variant_calling/*/*/*.vcf.gz`
+- BAM files: `{variant_calling_outdir}/preprocessing/mapped/*/*.sorted.bam`
 
 ### Mode 3: Post-Processing with Custom File Paths
 
@@ -103,7 +103,7 @@ outdir/
 1. Navigate to the pipeline in your platform interface
 2. Choose your input mode:
    - **Mode 1**: Upload `--input` samplesheet (FASTQ files)
-   - **Mode 2**: Specify `--sarek_outdir` (existing Sarek results)
+   - **Mode 2**: Specify `--variant_calling_outdir` (existing variant calling results)
    - **Mode 3**: Upload `--post_samplesheet` (custom VCF/BAM paths)
 3. Specify your **output directory** path
 4. Click **Run**
@@ -117,10 +117,10 @@ nextflow run main.nf \
   --outdir results
 ```
 
-**Mode 2 - Post-process existing Sarek output:**
+**Mode 2 - Post-process existing variant calling output:**
 ```bash
 nextflow run main.nf \
-  --sarek_outdir /path/to/sarek/results \
+  --variant_calling_outdir /path/to/variant_calling/results \
   --outdir results
 ```
 

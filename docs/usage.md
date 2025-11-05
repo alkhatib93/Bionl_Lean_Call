@@ -3,8 +3,8 @@
 ## Pipeline Overview
 
 Bionl_Lean_Call is a flexible pipeline that can run in three modes:
-1. **Mode 1**: Full pipeline starting from FASTQ files (runs Sarek + post-processing)
-2. **Mode 2**: Post-processing from Sarek output directory (automatic file discovery)
+1. **Mode 1**: Full pipeline starting from FASTQ files (runs variant calling + post-processing)
+2. **Mode 2**: Post-processing from variant calling output directory (automatic file discovery)
 3. **Mode 3**: Post-processing with custom file paths (explicit VCF/BAM specification)
 
 ---
@@ -13,10 +13,10 @@ Bionl_Lean_Call is a flexible pipeline that can run in three modes:
 
 ### Mode 1: Full Pipeline (FASTQ Input)
 
-Run the complete Sarek variant calling workflow followed by VEP annotation and reporting.
+Run the complete variant calling workflow followed by VEP annotation and reporting.
 
 #### Required Parameters
-- `--input`: Path to Sarek-formatted CSV samplesheet with FASTQ file paths
+- `--input`: Path to CSV samplesheet with FASTQ file paths
 - `--outdir`: Directory where results will be saved
 
 #### Sample Sheet Format
@@ -48,20 +48,20 @@ nextflow run main.nf \
 
 ---
 
-### Mode 2: Post-Processing from Sarek Output Directory
+### Mode 2: Post-Processing from Variant Calling Output Directory
 
-Use this mode when you have an existing Sarek results directory. The pipeline automatically discovers VCF and BAM files following Sarek's standard output structure.
+Use this mode when you have an existing variant calling results directory. The pipeline automatically discovers VCF and BAM files following the standard variant calling output structure.
 
 #### Required Parameters
-- `--sarek_outdir`: Path to Sarek results directory
+- `--variant_calling_outdir`: Path to variant calling results directory
 - `--outdir`: Directory where post-processing results will be saved
 
 #### How It Works
 
-The pipeline automatically searches for files in the Sarek output structure:
-- **VCF files**: `{sarek_outdir}/variant_calling/*/*/*.vcf.gz`
-- **BAM files**: `{sarek_outdir}/preprocessing/mapped/*/*.sorted.bam`
-- **BAI files**: `{sarek_outdir}/preprocessing/mapped/*/*.sorted.bam.bai`
+The pipeline automatically searches for files in the variant calling output structure:
+- **VCF files**: `{variant_calling_outdir}/variant_calling/*/*/*.vcf.gz`
+- **BAM files**: `{variant_calling_outdir}/preprocessing/mapped/*/*.sorted.bam`
+- **BAI files**: `{variant_calling_outdir}/preprocessing/mapped/*/*.sorted.bam.bai`
 
 Sample names are extracted from the directory structure.
 
@@ -69,17 +69,17 @@ Sample names are extracted from the directory structure.
 
 ```bash
 nextflow run main.nf \
-  --sarek_outdir /path/to/sarek/results \
+  --variant_calling_outdir /path/to/variant_calling/results \
   --outdir results
 ```
 
-**Note:** This mode assumes standard Sarek output structure. If your files are in custom locations, use Mode 3 instead.
+**Note:** This mode assumes standard variant calling output structure. If your files are in custom locations, use Mode 3 instead.
 
 ---
 
 ### Mode 3: Post-Processing with Custom File Paths
 
-Use this mode for maximum control when files are not in standard Sarek structure, or when you want to process specific samples with explicit paths.
+Use this mode for maximum control when files are not in standard variant calling structure, or when you want to process specific samples with explicit paths.
 
 #### Required Parameters
 - `--post_samplesheet`: Path to CSV file with explicit VCF/BAM/BAI paths
@@ -194,11 +194,11 @@ nextflow run main.nf \
   --target_bed regions.bed
 ```
 
-### Example 2: Post-process from Sarek output
+### Example 2: Post-process from variant calling output
 
 ```bash
 nextflow run main.nf \
-  --sarek_outdir /data/sarek_results \
+  --variant_calling_outdir /data/variant_calling_results \
   --outdir lean_call_results \
   --target_bed ACMG_genes.bed
 ```
@@ -234,7 +234,7 @@ nextflow run main.nf \
   - Running samples for the first time
 
 - Use **post-processing mode** when:
-  - You already have Sarek results
+  - You already have variant calling results
   - You want to re-annotate variants without re-running alignment
   - You need to update reports or change filtering criteria
   - You have BAM/VCF files from compatible pipelines
@@ -265,9 +265,9 @@ nextflow run main.nf \
 
 ### Common Issues
 
-**Issue: Sample not found in Sarek output**
-- Solution: Check that sample names match directory names in Sarek output
-- Verify the Sarek pipeline completed successfully
+**Issue: Sample not found in variant calling output**
+- Solution: Check that sample names match directory names in variant calling output
+- Verify the variant calling pipeline completed successfully
 
 **Issue: VCF or BAM file not found**
 - Solution: Verify all paths in post_samplesheet.csv are absolute paths

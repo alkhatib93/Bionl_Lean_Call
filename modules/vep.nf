@@ -342,6 +342,8 @@ process VEP_Annotate {
     path alpha_missense_vcf_tbi
     path clinvar_vcf
     path clinvar_vcf_tbi
+    path spliceai_snv_vcf
+    path spliceai_snv_vcf_tbi
     path vep_plugins
   output:
     tuple val(sample), path("${sample}.vep.vcf")
@@ -359,6 +361,7 @@ process VEP_Annotate {
     --hgvs --symbol --vcf --everything --canonical --merged \
     --plugin REVEL,${revel_vcf} \
     --plugin AlphaMissense,file=${alpha_missense_vcf},cols=am_pathogenicity:am_class \
+    --plugin SpliceAI,${spliceai_snv_vcf},symbol=1 \
     --custom ${clinvar_vcf},ClinVar,vcf,exact,0,CLNSIG,CLNREVSTAT,ALLELEID
   """
 }
@@ -441,6 +444,8 @@ workflow POST_SAREK {
       file(params.alpha_missense_vcf + ".tbi"), 
       file(params.clinvar_vcf), 
       file(params.clinvar_vcf + ".tbi"), 
+      file(params.spliceai_snv_vcf), 
+      file(params.spliceai_snv_vcf + ".tbi"),
       file(params.vep_plugins)
       ) : AddVAF.out  // (sample, vcf)
 
