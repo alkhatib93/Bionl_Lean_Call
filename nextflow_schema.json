@@ -7,19 +7,19 @@
 
   "$defs": {
     "io_options": {
-      "title": "Input / Output and Sarek options",
+      "title": "Input / Output",
       "type": "object",
       "properties": {
-        "run_sarek": {
+        "run_variant_calling": {
           "type": "boolean",
-          "title": "Run Sarek",
-          "description": "If true, run nf-core/sarek. If false, run post-processing only.",
+          "title": "Run Variant Calling",
+          "description": "If true, run variant calling. If false, run post-processing only.",
           "default": true
         },
         "input": {
           "type": "string",
           "title": "Samplesheet CSV",
-          "description": "CSV file for Sarek input. Required if run_sarek = true.",
+          "description": "CSV file for variant calling input. Required if run_variant_calling = true.",
           "mimetype": "text/csv",
           "format": "file-path",
           "pattern": "^\\S*\\.csv$"
@@ -30,71 +30,56 @@
           "description": "Where to write results (local path or gs://).",
           "format": "directory-path"
         },
-        "sarek_outdir": {
+        "variant_calling_outdir": {
           "type": "string",
-          "title": "Existing Sarek results directory",
-          "description": "Use a pre-run Sarek results folder if run_sarek=false. Cannot be used with post_samplesheet.",
+          "title": "Existing variant calling results directory",
+          "description": "Use a pre-run variant calling results folder if run_variant_calling=false. Cannot be used with post_samplesheet.",
           "format": "directory-path"
         },
         "post_samplesheet": {
           "type": "string",
           "title": "Post-only samplesheet CSV",
-          "description": "CSV with sample,vcf,bam for post-Sarek mode. Cannot be used with sarek_outdir.",
+          "description": "CSV with sample,vcf,bam for post-variant calling mode. Cannot be used with variant_calling_outdir.",
           "mimetype": "text/csv",
           "format": "file-path",
           "pattern": "^\\S*\\.csv$"
         }
-      }
-    },
-
-    "post_sarek": {
-      "title": "Post-Sarek annotation resources",
-      "type": "object",
-      "properties": {
-        "vep_cache": { "type": "string", "format": "file-path", "pattern": "^(gs://|/|\\.|[A-Za-z]:\\\\).+$" },
-        "vep_fasta": { "type": "string", "format": "file-path", "pattern": "^(gs://|/|\\.|[A-Za-z]:\\\\).+\\.f(ast)?a(\\.gz)?$" },
-        "gnomad_vcf": { "type": "string", "format": "file-path", "pattern": "^(gs://|/|\\.|[A-Za-z]:\\\\).+\\.vcf(\\.gz)?$" },
-        "revel_vcf": { "type": "string", "format": "file-path", "pattern": "^(gs://|/|\\.|[A-Za-z]:\\\\).+\\.(vcf|tsv)(\\.gz)?$" },
-        "alpha_missense_vcf": { "type": "string", "format": "file-path", "pattern": "^(gs://|/|\\.|[A-Za-z]:\\\\).+\\.(vcf|tsv)(\\.gz)?$" },
-        "clinvar_vcf": { "type": "string", "format": "file-path", "pattern": "^(gs://|/|\\.|[A-Za-z]:\\\\).+\\.vcf(\\.gz)?$" },
-        "vep_plugins": { "type": "string", "format": "file-path", "pattern": "^(gs://|/|\\.|[A-Za-z]:\\\\).+$" }
       }
     }
   },
 
   "allOf": [
     { "$ref": "#/$defs/io_options" },
-    { "$ref": "#/$defs/post_sarek" },
     {
       "not": {
-        "required": ["post_samplesheet", "sarek_outdir"],
-        "description": "Cannot provide both post_samplesheet and sarek_outdir"
+        "required": ["post_samplesheet", "variant_calling_outdir"],
+        "description": "Cannot provide both post_samplesheet and variant_calling_outdir"
       }
     }
   ],
 
   "if": {
-    "properties": { "run_sarek": { "const": true } }
+    "properties": { "run_variant_calling": { "const": true } }
   },
   "then": {
     "required": ["input", "outdir"],
-    "description": "When run_sarek=true you must provide input (samplesheet) and outdir."
+    "description": "When run_variant_calling=true you must provide input (samplesheet) and outdir."
   },
   "else": {
     "required": ["outdir"],
     "oneOf": [
       {
         "required": ["post_samplesheet"],
-        "not": { "required": ["sarek_outdir"] },
-        "description": "Provide post_samplesheet without sarek_outdir"
+        "not": { "required": ["variant_calling_outdir"] },
+        "description": "Provide post_samplesheet without variant_calling_outdir"
       },
       {
-        "required": ["sarek_outdir"],
+        "required": ["variant_calling_outdir"],
         "not": { "required": ["post_samplesheet"] },
-        "description": "Provide sarek_outdir without post_samplesheet"
+        "description": "Provide variant_calling_outdir without post_samplesheet"
       }
     ],
-    "description": "When run_sarek=false you must provide outdir and either post_samplesheet OR sarek_outdir (not both)."
+    "description": "When run_variant_calling=false you must provide outdir and either post_samplesheet OR variant_calling_outdir (not both)."
   },
 
   "additionalProperties": true

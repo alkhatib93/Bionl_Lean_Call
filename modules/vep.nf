@@ -376,12 +376,12 @@ process LeanReport {
           path(thresholds)
     path script
   output:
-    tuple val(sample), path("${sample}_variants_lean.xlsx")
+    tuple val(sample), path("${sample}_report/${sample}_variants_lean.xlsx")
   script:
   """
   mkdir -p ${sample}_report
   python ${script} \
-    $vcf $exon_cov $r1r2 $frstrand ${sample}_variants_lean.xlsx \
+    $vcf $exon_cov $r1r2 $frstrand ${sample}_report/${sample}_variants_lean.xlsx \
     --sample-id ${sample} --assay WES --build GRCh38 \
     --flagstat ${flagstat} --stats ${stats} \
     --mosdepth-summary ${mosdepth_summary} \
@@ -402,7 +402,6 @@ process GENERATE_ACMG_REPORT {
     tuple val(sample), path("${sample}_report/${sample}_clinical_report.html")
   script:
   """
-  #mkdir -p ${sample}_report
   python ${python_skeleton}/generate_report.py \
     ${excel_file} ${sample}_report \
     --sample-id ${sample} \

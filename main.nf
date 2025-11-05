@@ -18,20 +18,20 @@ params.outdir = params.outdir ?: params.output
 //params.outdir  = params.outdir  ?: "${workflow.projectDir}/results/sarek"
 params.bed     = params.bed     ?: "${workflow.projectDir}/data/annotated_merged_MANE_deduped.bed"
 //params.intervals     = params.intervals     ?: "${workflow.projectDir}/data/chr22_targets.bed"
-params.run_sarek = (params.run_sarek instanceof Boolean) ? params.run_sarek : true
+params.run_variant_calling = (params.run_variant_calling instanceof Boolean) ? params.run_variant_calling : true
 // Any extra Sarek params you'll pass on CLI (e.g., --genome, --fasta, --tools, …)
 // ── Fail fast if missing ──
-if( params.run_sarek ) {
-  if( !params.input )  error "Missing --input (samplesheet CSV) when run_sarek=true"
-  if( !params.outdir ) error "Missing --outdir when run_sarek=true"
+if( params.run_variant_calling ) {
+  if( !params.input )  error "Missing --input (samplesheet CSV) when run_variant_calling=true"
+  if( !params.outdir ) error "Missing --outdir when run_variant_calling=true"
 } else {
-  //if( !params.sarek_outdir ) error "Missing --sarek_outdir when run_sarek=false"
-  if( !params.post_samplesheet && !params.sarek_outdir )
-    error "When run_sarek=false provide either --post_samplesheet or --sarek_outdir"
-  if( params.post_samplesheet && params.sarek_outdir )
-    error "Cannot provide both --post_samplesheet and --sarek_outdir. Choose one."
+  //if( !params.variant_calling_outdir ) error "Missing --variant_calling_outdir when run_variant_calling=false"
+  if( !params.post_samplesheet && !params.variant_calling_outdir )
+    error "When run_variant_calling=false provide either --post_samplesheet or --variant_calling_outdir"
+  if( params.post_samplesheet && params.variant_calling_outdir )
+    error "Cannot provide both --post_samplesheet and --variant_calling_outdir. Choose one."
 }
-// ── Helper workflow to collect Sarek outputs ────────────────────────────────────
+// ── Helper workflow to collect variant calling outputs ────────────────────────────────────
 workflow COLLECT_SAREK_OUTPUTS {
   take:
     trigger    // A channel that acts as a completion signal
@@ -93,14 +93,14 @@ workflow {
   if (!bedFile?.exists()) error "BED file not found: ${params.bed}"
   bed_ch = Channel.value(bedFile)
 
-    if (params.sarek_outdir) {
-      log.info ">>> Skipping Sarek run, using existing results in ${params.sarek_outdir}"
+    if (params.variant_calling_outdir) {
+      log.info ">>> Skipping variant calling run, using existing results in ${params.variant_calling_outdir}"
 
-      def isGCS = params.sarek_outdir.startsWith('gs://')
+      def isGCS = params.variant_calling_outdir.startsWith('gs://')
 
       // ── Collect VCFs ──
       vcf_ch = Channel
-        .fromPath("${params.sarek_outdir}/variant_calling/*/*/*.vcf.gz", checkIfExists: !isGCS)
+        .fromPath("${params.variant_calling_outdir}/variant_calling/*/*/*.vcf.gz", checkIfExists: !isGCS)
         .filter { vcf -> 
           vcf.name.endsWith('.vcf.gz') && 
           !vcf.name.contains('.g.vcf.gz') && 
@@ -113,7 +113,7 @@ workflow {
 
       // ── Collect BAMs with BAI (GCS-aware) ──
       bam_ch = Channel
-        .fromPath("${params.sarek_outdir}/preprocessing/mapped/*/*.sorted.bam", checkIfExists: !isGCS)
+        .fromPath("${params.variant_calling_outdir}/preprocessing/mapped/*/*.sorted.bam", checkIfExists: !isGCS)
         .map { bam -> 
           def sample = bam.parent.name
           // DEBUG: Print the actual path
@@ -145,13 +145,13 @@ workflow {
       vcf_ch.view { s, v -> "VCF -> ${s} :: ${v}" }
       bam_ch.view { s, a, i -> "ALN -> ${s} :: ${a} | IDX ${i}" }
 
-      vcf_ch.ifEmpty { error "No VCFs found in ${params.sarek_outdir}/variant_calling/*/*/*.vcf.gz" }
-      bam_ch.ifEmpty  { error "No BAMs found in ${params.sarek_outdir}/preprocessing/mapped/*/*.sorted.bam" }
+      vcf_ch.ifEmpty { error "No VCFs found in ${params.variant_calling_outdir}/variant_calling/*/*/*.vcf.gz" }
+      bam_ch.ifEmpty  { error "No BAMs found in ${params.variant_calling_outdir}/preprocessing/mapped/*/*.sorted.bam" }
 
       POST_SAREK(vcf_ch, bam_ch, bed_ch)
 
 } else if (params.post_samplesheet) {
-    log.info ">>> Running post-Sarek from custom samplesheet ${params.post_samplesheet}"
+    log.info ">>> Running post-variant calling from custom samplesheet ${params.post_samplesheet}"
 
     // Read samplesheet and validate files exist
     Channel
@@ -178,11 +178,11 @@ workflow {
     vcf_ch = result.vcf
     bam_ch = result.bam
 
-    // ── Run post-Sarek steps ──
+    // ── Run post-variant calling steps ──
     POST_SAREK(vcf_ch, bam_ch, bed_ch)
 
   } else {
-    log.info ">>> Running Sarek as part of the pipeline"
+    log.info ">>> Running variant calling as part of the pipeline"
 
     PIPELINE_INITIALISATION(
       params.version,
@@ -211,7 +211,7 @@ workflow {
       params.outdir
     )
 
-    // ── Run post-Sarek steps ──
+    // ── Run post-variant calling steps ──
     POST_SAREK(
       COLLECT_SAREK_OUTPUTS.out.vcf, 
       COLLECT_SAREK_OUTPUTS.out.bam, 
