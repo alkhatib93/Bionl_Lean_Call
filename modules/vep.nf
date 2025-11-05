@@ -187,7 +187,8 @@ process MosdepthRun {
     tuple val(sample),
       path("${sample}.mosdepth.summary.txt"),
       path("${sample}.thresholds.bed.gz"),
-      path("${sample}.quantized.bed.gz")
+      path("${sample}.quantized.bed.gz"),
+      path("${sample}.regions.bed.gz")
       //path("${sample}_coverage_summary.overall.txt")
 
   script:
@@ -344,6 +345,8 @@ process VEP_Annotate {
     path clinvar_vcf_tbi
     path spliceai_snv_vcf
     path spliceai_snv_vcf_tbi
+    path bayesdel_vcf
+    path bayesdel_vcf_tbi
     path vep_plugins
   output:
     tuple val(sample), path("${sample}.vep.vcf")
@@ -361,7 +364,8 @@ process VEP_Annotate {
     --hgvs --symbol --vcf --everything --canonical --merged \
     --plugin REVEL,${revel_vcf} \
     --plugin AlphaMissense,file=${alpha_missense_vcf},cols=am_pathogenicity:am_class \
-    --plugin SpliceAI,${spliceai_snv_vcf},symbol=1 \
+    --plugin SpliceAI,${spliceai_snv_vcf} \
+    --plugin BayesDel,${bayesdel_vcf} \
     --custom ${clinvar_vcf},ClinVar,vcf,exact,0,CLNSIG,CLNREVSTAT,ALLELEID
   """
 }
@@ -446,6 +450,8 @@ workflow POST_SAREK {
       file(params.clinvar_vcf + ".tbi"), 
       file(params.spliceai_snv_vcf), 
       file(params.spliceai_snv_vcf + ".tbi"),
+      file(params.bayesdel_vcf), 
+      file(params.bayesdel_vcf + ".tbi"),
       file(params.vep_plugins)
       ) : AddVAF.out  // (sample, vcf)
 
@@ -459,7 +465,7 @@ workflow POST_SAREK {
     SamtoolsFlagstat(bam_sample_ch.map { s, bam, bai -> tuple(s, bam) })
     SamtoolsStats(bam_sample_ch.map { s, bam, bai -> tuple(s, bam) })
     MosdepthRun(bam_sample_ch, bed_ch)
-    CoverageGapsAnnotation(MosdepthRun.out.map { s, summary, thresholds, quantized -> tuple(s, quantized, thresholds) }, bed_ch)
+    CoverageGapsAnnotation(MosdepthRun.out.map { s, summary, thresholds, quantized , regions -> tuple(s, quantized, thresholds) }, bed_ch)
     SexCheck(bam_sample_ch.map { s, bam, bai -> tuple(s, bam) })
     BcftoolsStats(vep_ch.map { s, vcf -> tuple(s, vcf) })
 
@@ -467,8 +473,8 @@ workflow POST_SAREK {
     exon_cov_ch         = CoverageSummary.out.map { s, summary, per_base -> tuple(s, summary) }
     gaps20_ch           = CoverageGapsAnnotation.out.map { s, g20, g30, a20, a30 -> tuple(s, a20) }
     gaps30_ch           = CoverageGapsAnnotation.out.map { s, g20, g30, a20, a30 -> tuple(s, a30) }
-    mosdepth_summary_ch = MosdepthRun.out.map { s, summary, thresholds, quantized -> tuple(s, summary) }
-    thresholds_ch       = MosdepthRun.out.map { s, summary, thresholds, quantized -> tuple(s, thresholds) }
+    mosdepth_summary_ch = MosdepthRun.out.map { s, summary, thresholds, quantized, regions -> tuple(s, summary) }
+    thresholds_ch       = MosdepthRun.out.map { s, summary, thresholds, quantized, regions -> tuple(s, thresholds) }
 
     // join all for LeanReport
     lean_input_ch = vep_ch

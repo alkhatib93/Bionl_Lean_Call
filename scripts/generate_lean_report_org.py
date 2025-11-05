@@ -689,6 +689,7 @@ for var in vcf:
         gnomad_af   = ann.get("gnomADg_AF") or ann.get("gnomADe_AF") or ann.get("AF")
         revel       = ann.get("REVEL")
         spliceai_ds, spliceai_event = parse_spliceai(ann.get("SpliceAI") or ann.get("SpliceAI_pred"))
+        bayesdel_score = ann.get("BayesDel_score")
         clinvar     = ann.get("ClinVar_CLNSIG") or ann.get("CLIN_SIG")
         alleleid    = ann.get("ClinVar_ALLELEID") or ann.get("ALLELEID")
         clinvar_review_status = ann.get("ClinVar_CLNREVSTAT") or ann.get("CLNREVSTAT")
@@ -729,7 +730,7 @@ for var in vcf:
         "ExonCov100": cov.get(">=100x","NA"),
         "R1": r1r2[0], "R2": r1r2[1], "R1R2_frac": r1r2[2], "R1R2_abs": r1r2_abs,
         "FWD": fr[0], "REV": fr[1], "FWD_frac": fr[2], "REV_frac": fr[3], "FR_abs": fr_abs,
-        "gnomAD_AF": gnomad_af, "REVEL": revel, "SpliceAI_DS_max": spliceai_ds, "SpliceAI_Event": spliceai_event, "CADD": cadd, "AM_Pathogenicity": am_pathogenicity, "AM_Class": am_class,
+        "gnomAD_AF": gnomad_af, "REVEL": revel, "SpliceAI_DS_max": spliceai_ds, "SpliceAI_Event": spliceai_event, "BayesDel_score": bayesdel_score, "CADD": cadd, "AM_Pathogenicity": am_pathogenicity, "AM_Class": am_class,
         "ClinVar": clinvar, "ClinVar_ReviewStatus": revstat, "ClinVar_Stars": stars, "ALLELEID": alleleid, "ClinVar_ALLELEID": alleleid,  
         "ClinVar_StarsGlyph" : clinvar_star_glyph(stars),
         "HGVS_full": None
@@ -804,7 +805,7 @@ with pd.ExcelWriter(args.xlsx_out) as xw:
         acmg = acmg[acmg["Gene"].isin(sf_genes)]
     acmg_cols = [
         "Gene","Variant","HGVSc","HGVSp","MANE_ID","Zygosity","GT","AD_Ref","AD_Alt","DP","GQ","QUAL",
-        "Consequence","Exon","Intron","ClinVar","ClinVar_ReviewStatus","ClinVar_Stars","ClinVar_StarsGlyph","ClinVar_Link","gnomAD_AF","REVEL","SpliceAI_DS_max","SpliceAI_Event","AM_Pathogenicity","AM_Class","HGVS_full"
+        "Consequence","Exon","Intron","ClinVar","ClinVar_ReviewStatus","ClinVar_Stars","ClinVar_StarsGlyph","ClinVar_Link","gnomAD_AF","REVEL","SpliceAI_DS_max","SpliceAI_Event","BayesDel_score","AM_Pathogenicity","AM_Class","HGVS_full"
     ]
     acmg[acmg_cols].to_excel(xw, index=False, sheet_name="ACMG SF (P-LP)")
 
@@ -854,7 +855,7 @@ with pd.ExcelWriter(args.xlsx_out) as xw:
     # 5) PASS variant table
     pass_cols = [
         "Variant","Gene","HGVSc","HGVSp","MANE_ID","Transcript","Consequence","GT","Zygosity","AD_Ref","AD_Alt","DP","GQ","QUAL",
-        "FILTER","VAF","gnomAD_AF","ClinVar","ClinVar_ReviewStatus","ClinVar_Stars","ClinVar_StarsGlyph","REVEL","SpliceAI_DS_max","SpliceAI_Event","AM_Pathogenicity","AM_Class","HGVS_full"
+        "FILTER","VAF","gnomAD_AF","ClinVar","ClinVar_ReviewStatus","ClinVar_Stars","ClinVar_StarsGlyph","REVEL","SpliceAI_DS_max","SpliceAI_Event","BayesDel_score","AM_Pathogenicity","AM_Class","HGVS_full"
     ]
     df[df["FILTER"]=="PASS"][pass_cols].to_excel(xw, index=False, sheet_name="PASS variants")
 
