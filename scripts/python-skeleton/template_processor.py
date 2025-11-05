@@ -120,6 +120,14 @@ class TemplateProcessor:
             hgvsp = variant.get('hgvsp', '—')
             clinvar_id = variant.get('clinvar_id', '')
 
+            for key in ['hgvsc', 'hgvsp']:
+                val = variant.get(key)
+                if val is None or str(val).lower() == 'nan' or str(val).strip() == '':
+                    variant[key] = '-'
+
+            hgvsc = variant['hgvsc']
+            hgvsp = variant['hgvsp']
+
             # Create gene cell with optional ClinVar link
             if clinvar_id:
                 gene_cell = f'<td class="font-semibold"><a href="{clinvar_id}" target="_blank">{gene}</a></td>'
@@ -148,9 +156,9 @@ class TemplateProcessor:
         }
 
         # Handle duplicate percent (shows as "—" in template)
-        duplicate_percent = data.get('duplicate_percent', '—')
-        if duplicate_percent != '—':
-            html = html.replace('<td class="metric-value">—</td>', f'<td class="metric-value">{duplicate_percent}</td>', 1)
+        #duplicate_percent = data.get('duplicate_percent', '—')
+        #if duplicate_percent != '—':
+        #    html = html.replace('<td class="metric-value">—</td>', f'<td class="metric-value">{duplicate_percent}</td>', 1)
 
         for old_value, new_value in replacements.items():
             html = html.replace(old_value, str(new_value))
