@@ -344,6 +344,8 @@ process VEP_Annotate {
     path clinvar_vcf_tbi
     path spliceai_snv_vcf
     path spliceai_snv_vcf_tbi
+    path bayesdel_vcf
+    path bayesdel_vcf_tbi
     path vep_plugins
   output:
     tuple val(sample), path("${sample}.vep.vcf")
@@ -447,6 +449,8 @@ workflow POST_SAREK {
       file(params.clinvar_vcf + ".tbi"), 
       file(params.spliceai_snv_vcf), 
       file(params.spliceai_snv_vcf + ".tbi"),
+      file(params.bayesdel_vcf), 
+      file(params.bayesdel_vcf + ".tbi"),
       file(params.vep_plugins)
       ) : AddVAF.out  // (sample, vcf)
 
