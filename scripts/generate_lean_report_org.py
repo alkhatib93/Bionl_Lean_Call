@@ -168,7 +168,29 @@ def parse_mosdepth_summary(path):
         # silently ignore parse errors
         return out
     return out
+def parse_mosdepth_summary_regions(path):
+    """Parse mosdepth summary.txt to get mean coverage and min/max across regions."""
+    out = {}
+    if not path or not os.path.exists(path):
+        return out
+    try:
+        df = pd.read_csv(path, sep="\t")
+        if df.empty:
+            return out
 
+        # Focus on on-target regions (rows ending with _region)
+        region_df = df[df["chrom"].astype(str).str.endswith("_region")].copy()
+        if region_df.empty:
+            region_df = df.copy()
+
+        # Compute weighted mean coverage across regions
+        cov_mean = (region_df["mean"] * region_df["length"]).sum() / region_df["length"].sum()
+        out["Mean_Coverage"] = round(float(cov_mean), 2)
+
+    except Exception as e:
+        print(f"[WARN] Failed to parse mosdepth summary {path}: {e}")
+        return out
+    return out
 def _num(x):
     # handles "78,05" and "100%" etc.
     return pd.to_numeric(str(x).replace("%","").replace(",", "."), errors="coerce")
@@ -671,7 +693,7 @@ for var in vcf:
         except: pass
 
     gene = transcript = hgvsc = hgvsp = consequence = exon = intron = impact = None
-    clinvar = alleleid = gnomad_af = revel = spliceai = cadd = clinvar_review_status = stars = am_pathogenicity = am_class = None
+    clinvar = alleleid = gnomad_af = revel = spliceai_ds = spliceai_event = cadd = mane_id = bayesdel_score = clinvar_review_status = stars = am_pathogenicity = am_class = None
     ann = {}
     if csq_format:
         ann = select_csq_entry(var, csq_format) or {}
@@ -764,7 +786,7 @@ with pd.ExcelWriter(args.xlsx_out) as xw:
     tmp = parse_picard_alignment(args.picard_align);  ss.update(tmp)
     tmp = parse_picard_insert(args.picard_insert);    ss.update({k:v for k,v in tmp.items() if v is not None})
     # Mosdepth means
-    ss.update(parse_mosdepth_summary(args.mosdepth_summary))
+    ss.update(parse_mosdepth_summary_regions(args.mosdepth_summary))
     ss.update(acmg_pct_regions_covered(args.acmg_thresholds))
     # Contamination & sex
     ss.update(parse_verifybamid(args.verifybamid))
