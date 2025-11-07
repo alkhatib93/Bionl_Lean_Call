@@ -346,6 +346,8 @@ process VEP_Annotate {
     path spliceai_snv_vcf_tbi
     path spliceai_indel_vcf
     path spliceai_indel_vcf_tbi
+    path bayesdel_vcf
+    path bayesdel_vcf_tbi
     path vep_plugins
   output:
     tuple val(sample), path("${sample}.vep.vcf")
@@ -364,6 +366,7 @@ process VEP_Annotate {
     --plugin REVEL,${revel_vcf} \
     --plugin AlphaMissense,file=${alpha_missense_vcf},cols=am_pathogenicity:am_class \
     --plugin SpliceAI,snv=${spliceai_snv_vcf},indel=${spliceai_indel_vcf} \
+    --plugin BayesDel,file=${bayesdel_vcf} \
     --custom ${clinvar_vcf},ClinVar,vcf,exact,0,CLNSIG,CLNREVSTAT,ALLELEID
   """
 }
@@ -450,6 +453,8 @@ workflow POST_SAREK {
       file(params.spliceai_snv_vcf + ".tbi"),
       file(params.spliceai_indel_vcf), 
       file(params.spliceai_indel_vcf + ".tbi"),
+      file(params.bayesdel_vcf), 
+      file(params.bayesdel_vcf + ".tbi"),
       file(params.vep_plugins)
       ) : AddVAF.out  // (sample, vcf)
 

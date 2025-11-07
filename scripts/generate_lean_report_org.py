@@ -710,7 +710,12 @@ for var in vcf:
         am_class    = ann.get("am_class")
         gnomad_af   = ann.get("gnomADg_AF") or ann.get("gnomADe_AF") or ann.get("AF")
         revel       = ann.get("REVEL")
-        spliceai_ds, spliceai_event = parse_spliceai(ann.get("SpliceAI") or ann.get("SpliceAI_pred"))
+        spliceai_fields = {
+        "DS_AG": ann.get("SpliceAI_pred_DS_AG"),
+        "DS_AL": ann.get("SpliceAI_pred_DS_AL"),
+        "DS_DG": ann.get("SpliceAI_pred_DS_DG"),
+        "DS_DL": ann.get("SpliceAI_pred_DS_DL"),
+        }
         bayesdel_score = ann.get("BayesDel_score")
         clinvar     = ann.get("ClinVar_CLNSIG") or ann.get("CLIN_SIG")
         alleleid    = ann.get("ClinVar_ALLELEID") or ann.get("ALLELEID")
@@ -722,7 +727,13 @@ for var in vcf:
     fr = get_fr(chrom, pos)
     revstat = clinvar_review_status if clinvar_review_status is not None else ""
     stars = clinvar_stars_from_revstat(revstat)
-    
+
+    spliceai_scores = {k: float(v) for k, v in spliceai_fields.items() if v not in [None, ""]}
+    if spliceai_scores:
+        spliceai_event, spliceai_ds = max(spliceai_scores.items(), key=lambda kv: kv[1])
+    else:
+        spliceai_event, spliceai_ds = None, None
+
     try:
         r1 = int(r1r2[0]); r2 = int(r1r2[1])
         r1r2_abs = round(r1 / r2, 2) if r2 > 0 else None
