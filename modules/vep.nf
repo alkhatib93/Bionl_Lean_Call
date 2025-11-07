@@ -382,7 +382,7 @@ process LeanReport {
           path(sex_check),
           path(gaps20), path(gaps30),
           path(thresholds)
-    each path script
+    each path(script)
   output:
     tuple val(sample), path("${sample}_report/${sample}_variants_lean.xlsx")
   script:
@@ -404,8 +404,8 @@ process GENERATE_ACMG_REPORT {
   publishDir "${params.outdir}/${sample}/reports", mode: 'copy'
   input:
     tuple val(sample), path(excel_file)
-    each path python_skeleton
-    each path template_dir
+    each path(python_skeleton)
+    each path(template_dir)
   output:
     tuple val(sample), path("${sample}_report/${sample}_clinical_report.html")
   script:
