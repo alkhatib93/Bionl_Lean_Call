@@ -363,7 +363,7 @@ process VEP_Annotate {
     --hgvs --symbol --vcf --everything --canonical --merged \
     --plugin REVEL,${revel_vcf} \
     --plugin AlphaMissense,file=${alpha_missense_vcf},cols=am_pathogenicity:am_class \
-    --plugin SpliceAI,snv=${spliceai_snv_vcf},indel=${spliceai_indel_vcf} \ 
+    --plugin SpliceAI,snv=${spliceai_snv_vcf},indel=${spliceai_indel_vcf} \
     --custom ${clinvar_vcf},ClinVar,vcf,exact,0,CLNSIG,CLNREVSTAT,ALLELEID
   """
 }
