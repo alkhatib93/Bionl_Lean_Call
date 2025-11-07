@@ -716,7 +716,7 @@ for var in vcf:
         "DS_DG": ann.get("SpliceAI_pred_DS_DG"),
         "DS_DL": ann.get("SpliceAI_pred_DS_DL"),
         }
-        bayesdel_score = ann.get("BayesDel_score")
+        bayesdel_score = ann.get("BayesDel")
         clinvar     = ann.get("ClinVar_CLNSIG") or ann.get("CLIN_SIG")
         alleleid    = ann.get("ClinVar_ALLELEID") or ann.get("ALLELEID")
         clinvar_review_status = ann.get("ClinVar_CLNREVSTAT") or ann.get("CLNREVSTAT")
