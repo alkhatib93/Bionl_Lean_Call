@@ -1,87 +1,86 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/<your-org-or-user>/Bionl_Lean_Call/main/nextflow_schema.json",
+  "$id": "https://raw.githubusercontent.com/alkhatib93/Bionl_Lean_Call/main/nextflow_schema.json",
   "title": "Bionl_Lean_Call parameters",
-  "description": "Germline ACMG-SF–focused workflow with optional upstream Sarek and post-Sarek QC/annotation/reporting.",
+  "description": "A germline variant-calling workflow focused on ACMG Secondary Findings (research use only), with standardized QC, annotation, and per-sample reports.",
   "type": "object",
 
   "$defs": {
     "io_options": {
-      "title": "Output",
+      "title": "Input / Output",
       "type": "object",
-      "fa_icon": "fas fa-folder-open",
-      "required": ["outdir"],
       "properties": {
+        "run_variant_calling": {
+          "type": "boolean",
+          "title": "Run Variant Calling",
+          "description": "If true, run variant calling. If false, run post-processing only.",
+          "default": true
+        },
+        "input": {
+          "type": "string",
+          "title": "Samplesheet CSV",
+          "description": "CSV file for variant calling input. Required if run_variant_calling = true.",
+          "mimetype": "text/csv",
+          "format": "file-path",
+          "pattern": "^\\S*\\.csv$"
+        },
         "outdir": {
           "type": "string",
-          "description": "Directory where analysis results will be saved.",
-          "help_text": "Results are organized by sample with qc/, vcf/, and reports/.",
-          "format": "directory-path"
-        }
-      }
-    },
-
-    "sarek_control": {
-      "title": "Upstream Sarek control",
-      "type": "object",
-      "fa_icon": "fas fa-project-diagram",
-      "required": ["run_sarek"],
-      "properties": {
-        "run_sarek": {
-          "type": "boolean",
-          "default": true,
-          "description": "Run nf-core/sarek (true) or reuse existing BAM/VCF (false).",
-          "fa_icon": "fas fa-toggle-on"
-        },
-        "samplesheet": {
-          "type": "string",
-          "default": "",
-          "description": "FASTQ samplesheet for Sarek (only used when run_sarek=true).",
-          "fa_icon": "fas fa-file-csv",
-          "format": "file-path",
-          "mimetype": "text/csv",
-          "pattern": "^\\S*\\.csv$"
-        },
-        "sarek_outdir": {
-          "type": "string",
-          "default": "",
-          "description": "Existing Sarek output directory (optional when run_sarek=false).",
-          "fa_icon": "fas fa-folder-open",
+          "title": "Output directory",
+          "description": "Where to write results (local path or gs://).",
           "format": "directory-path"
         },
-        "post_only_samplesheet": {
+        "variant_calling_outdir": {
           "type": "string",
-          "default": "",
-          "description": "Post-only samplesheet (optional when run_sarek=false). CSV with columns: sample,vcf,bam[,bai].",
-          "fa_icon": "fas fa-file-csv",
-          "format": "file-path",
+          "title": "Existing variant calling results directory",
+          "description": "Use a pre-run variant calling results folder if run_variant_calling=false. Cannot be used with post_samplesheet.",
+          "format": "directory-path"
+        },
+        "post_samplesheet": {
+          "type": "string",
+          "title": "Post-only samplesheet CSV",
+          "description": "CSV with sample,vcf,bam for post-variant calling mode. Cannot be used with variant_calling_outdir.",
           "mimetype": "text/csv",
+          "format": "file-path",
           "pattern": "^\\S*\\.csv$"
         }
-      }
-    },
-
-    "post_sarek": {
-      "title": "Post-Sarek annotation (VEP & resources)",
-      "type": "object",
-      "fa_icon": "fas fa-dna",
-      "properties": {
-        "vep_cache":      { "type": "string", "description": "Path/URI to VEP cache root.", "format": "directory-path" },
-        "vep_plugins":    { "type": "string", "description": "Directory with VEP plugins.",   "format": "directory-path" },
-        "vep_fasta":      { "type": "string", "description": "Reference FASTA for VEP.",      "format": "file-path", "pattern": "^\\S+\\.f(ast)?a(\\.gz)?$" },
-        "gnomad_vcf":     { "type": "string", "description": "gnomAD VCF (optional).",        "format": "file-path", "pattern": "^\\S+\\.vcf(\\.gz)?$" },
-        "revel_vcf":      { "type": "string", "description": "REVEL TSV/VCF (bgzipped).",     "format": "file-path", "pattern": "^\\S+\\.(vcf|tsv)(\\.gz)?$" },
-        "alpha_missense_vcf": { "type": "string", "description": "AlphaMissense TSV/VCF (bgzipped).", "format": "file-path", "pattern": "^\\S+\\.(vcf|tsv)(\\.gz)?$" },
-        "clinvar_vcf":    { "type": "string", "description": "ClinVar VCF (bgzipped).",       "format": "file-path", "pattern": "^\\S+\\.vcf(\\.gz)?$" }
       }
     }
   },
 
   "allOf": [
     { "$ref": "#/$defs/io_options" },
-    { "$ref": "#/$defs/sarek_control" },
-    { "$ref": "#/$defs/post_sarek" }
+    {
+      "not": {
+        "required": ["post_samplesheet", "variant_calling_outdir"],
+        "description": "Cannot provide both post_samplesheet and variant_calling_outdir"
+      }
+    }
   ],
+
+  "if": {
+    "properties": { "run_variant_calling": { "const": true } }
+  },
+  "then": {
+    "required": ["input", "outdir"],
+    "description": "When run_variant_calling=true you must provide input (samplesheet) and outdir."
+  },
+  "else": {
+    "required": ["outdir"],
+    "oneOf": [
+      {
+        "required": ["post_samplesheet"],
+        "not": { "required": ["variant_calling_outdir"] },
+        "description": "Provide post_samplesheet without variant_calling_outdir"
+      },
+      {
+        "required": ["variant_calling_outdir"],
+        "not": { "required": ["post_samplesheet"] },
+        "description": "Provide variant_calling_outdir without post_samplesheet"
+      }
+    ],
+    "description": "When run_variant_calling=false you must provide outdir and either post_samplesheet OR variant_calling_outdir (not both)."
+  },
 
   "additionalProperties": true
 }

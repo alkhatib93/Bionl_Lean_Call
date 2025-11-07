@@ -8,6 +8,8 @@ params.scriptdir   = params.scriptdir   ?: "${workflow.projectDir}/scripts"
 params.template_dir= params.template_dir?: "${workflow.projectDir}/scripts/template-files"
 
 params.run_vep     = params.run_vep     ?: true
+params.min_dp   = params.min_dp   ?: 20
+params.min_qual = params.min_qual ?: 30
 // VEP resource params expected from main/config:
 // params.vep_fasta, params.revel_vcf, params.alpha_missense_vcf, params.clinvar_vcf
 
@@ -18,10 +20,10 @@ process BedFilterVCF {
   tag "$sample"
   publishDir "${params.outdir}/${sample}/vcf", mode: 'copy'
   input:
-    tuple val(sample), path(vcf), path(bam)
+    tuple val(sample), path(vcf)
     path bed
   output:
-    tuple val(sample), path("${sample}.bed_filtered.vcf.gz"), path(bam)
+    tuple val(sample), path("${sample}.bed_filtered.vcf.gz")
   script:
   """
   tabix -p vcf $vcf || bcftools index -t $vcf
@@ -34,9 +36,9 @@ process NormalizeVCF {
   tag "$sample"
   publishDir "${params.outdir}/${sample}/vcf", mode: 'copy'
   input:
-    tuple val(sample), path(vcf), path(bam)
+    tuple val(sample), path(vcf)
   output:
-    tuple val(sample), path("${sample}.normalized.vcf.gz"), path(bam)
+    tuple val(sample), path("${sample}.normalized.vcf.gz")
   script:
   """
   bcftools norm -m -any $vcf -Oz -o ${sample}.normalized.vcf.gz
@@ -48,12 +50,12 @@ process FilterVCF {
   tag "$sample"
   publishDir "${params.outdir}/${sample}/vcf", mode: 'copy'
   input:
-    tuple val(sample), path(vcf), path(bam)
+    tuple val(sample), path(vcf)
   output:
-    tuple val(sample), path("${sample}.filtered.vcf.gz"), path(bam)
+    tuple val(sample), path("${sample}.filtered.vcf.gz")
   script:
   """
-  bcftools view -i 'FORMAT/DP >= 20 && QUAL >= 30' $vcf -Oz -o ${sample}.filtered.vcf.gz
+  bcftools view -i 'FORMAT/DP >= ${params.min_dp} && QUAL >= ${params.min_qual}' $vcf -Oz -o ${sample}.filtered.vcf.gz
   tabix -p vcf ${sample}.filtered.vcf.gz
   """
 }
@@ -62,7 +64,7 @@ process AddVAF {
   tag "$sample"
   publishDir "${params.outdir}/${sample}/vcf", mode: 'copy'
   input:
-    tuple val(sample), path(vcf), path(bam)
+    tuple val(sample), path(vcf)
   output:
     tuple val(sample), path("${sample}.vaf_added.vcf.gz")
   script:
@@ -79,7 +81,7 @@ process BedFilterBAM {
     tuple val(sample), path(vcf), path(bam)
     path bed
   output:
-    tuple val(sample), path(vcf), path("${sample}.bed_filtered.bam"), path("${sample}.bed_filtered.bam.bai")
+    tuple val(sample), path("${sample}.bed_filtered.bam"), path("${sample}.bed_filtered.bam.bai")
   script:
   """
   samtools view -L $bed -b -@ 16 $bam -o tmp.bam
@@ -106,7 +108,7 @@ process CoverageSummary {
     for (k in total)
       printf "%s\\t>=20x:%.2f%%\\t>=30x:%.2f%%\\t>=50x:%.2f%%\\t>=100x:%.2f%%\\n", k,(c20[k]/total[k])*100,(c30[k]/total[k])*100,(c50[k]/total[k])*100,(c100[k]/total[k])*100
   }' ${sample}_coverage_per_base.txt > ${sample}_coverage_summary.txt
-  sort -k1,1V -k1.2,1n -t: -k2,2n ${sample}_coverage_summary.txt > ${sample}_coverage_summary.sorted.txt
+  sort -t: -k1,1 -k2,2n ${sample}_coverage_summary.txt > ${sample}_coverage_summary.sorted.txt
   """
 }
 
@@ -173,48 +175,120 @@ process SamtoolsStats {
   samtools stats $bam > ${sample}_stats.txt
   """
 }
-
-process MosdepthCoverage {
+process MosdepthRun {
   tag "$sample"
   publishDir "${params.outdir}/${sample}/qc", mode: 'copy'
+
   input:
     tuple val(sample), path(bam), path(bai)
     path bed
+
   output:
     tuple val(sample),
       path("${sample}.mosdepth.summary.txt"),
-      path("${sample}.regions.bed.gz"),
       path("${sample}.thresholds.bed.gz"),
-      path("${sample}.quantized.bed.gz"),
-      path("${sample}_coverage_summary.overall.txt"),
-      path("${sample}.acmg_gaps_lt20.bed"),
-      path("${sample}.acmg_gaps_lt30.bed"),
-      path("${sample}.acmg_gaps_lt20.annot.bed"),
-      path("${sample}.acmg_gaps_lt30.annot.bed")
+      path("${sample}.quantized.bed.gz")
+      //path("${sample}_coverage_summary.overall.txt")
+
   script:
   """
+  echo "[\$(date -Is)] Starting mosdepth for ${sample}" >&2
   set -euo pipefail
+  cp $bam ./${sample}.bam
+  cp $bai ./${sample}.bam.bai
   export MOSDEPTH_Q0=LT20
   export MOSDEPTH_Q1=GE20_LT30
   export MOSDEPTH_Q2=GE30
 
   mosdepth --no-per-base --by $bed --thresholds 10,20,30,50,100 --quantize 0:20:30: --fast-mode $sample $bam
-  python ${params.scriptdir}/summarize_mosdepth.py \
-    --prefix $sample \
-    --summary ${sample}.mosdepth.summary.txt \
-    --thresholds ${sample}.thresholds.bed.gz \
-    --out ${sample}_coverage_summary.overall.txt
-
-  zcat ${sample}.quantized.bed.gz | awk '\$4=="LT20"' | bedtools intersect -wa -a - -b $bed | bedtools sort -i - | bedtools merge -i - > ${sample}.acmg_gaps_lt20.bed
-  zcat ${sample}.quantized.bed.gz | awk '\$4=="LT20" || \$4=="GE20_LT30"' | bedtools intersect -wa -a - -b $bed | bedtools sort -i - | bedtools merge -i - > ${sample}.acmg_gaps_lt30.bed
-
-  bedtools intersect -wao -a ${sample}.acmg_gaps_lt20.bed -b $bed | \
-    awk 'BEGIN{OFS="\t"}{ label = (\$7 != "" && \$7 != ".") ? \$7 : \$4 ":" \$5 "-" \$6; print \$1,\$2,\$3,label}' > ${sample}.acmg_gaps_lt20.annot.bed
-
-  bedtools intersect -wao -a ${sample}.acmg_gaps_lt30.bed -b $bed | \
-    awk 'BEGIN{OFS="\t"}{ label = (\$7 != "" && \$7 != ".") ? \$7 : \$4 ":" \$5 "-" \$6; print \$1,\$2,\$3,label}' > ${sample}.acmg_gaps_lt30.annot.bed
+  echo "[\$(date -Is)] Finished mosdepth for ${sample}" >&2
+  #python ${params.scriptdir}/summarize_mosdepth.py \
+  #  --prefix $sample \
+  #  --summary ${sample}.mosdepth.summary.txt \
+  #  --thresholds ${sample}.thresholds.bed.gz \
+  #  --out ${sample}_coverage_summary.overall.txt
   """
 }
+
+process CoverageGapsAnnotation {
+  tag "$sample"
+  publishDir "${params.outdir}/${sample}/qc", mode: 'copy'
+
+  input:
+    tuple val(sample),
+      path("${sample}.quantized.bed.gz"),
+      path("${sample}.thresholds.bed.gz")
+    path bed
+
+  output:
+    tuple val(sample),
+      path("${sample}.acmg_gaps_lt20.bed"),
+      path("${sample}.acmg_gaps_lt30.bed"),
+      path("${sample}.acmg_gaps_lt20.annot.bed"),
+      path("${sample}.acmg_gaps_lt30.annot.bed")
+
+  script:
+  """
+  zcat ${sample}.quantized.bed.gz | awk '\$4=="LT20"' \
+    | bedtools intersect -wa -a - -b $bed \
+    | bedtools sort -i - \
+    | bedtools merge -i - > ${sample}.acmg_gaps_lt20.bed
+
+  zcat ${sample}.quantized.bed.gz | awk '\$4=="LT20" || \$4=="GE20_LT30"' \
+    | bedtools intersect -wa -a - -b $bed \
+    | bedtools sort -i - \
+    | bedtools merge -i - > ${sample}.acmg_gaps_lt30.bed
+
+  bedtools intersect -wao -a ${sample}.acmg_gaps_lt20.bed -b $bed \
+    | awk 'BEGIN{OFS="\\t"}{ label = (\$7 != "" && \$7 != ".") ? \$7 : \$4 ":" \$5 "-" \$6; print \$1,\$2,\$3,label}' \
+    > ${sample}.acmg_gaps_lt20.annot.bed
+
+  bedtools intersect -wao -a ${sample}.acmg_gaps_lt30.bed -b $bed \
+    | awk 'BEGIN{OFS="\\t"}{ label = (\$7 != "" && \$7 != ".") ? \$7 : \$4 ":" \$5 "-" \$6; print \$1,\$2,\$3,label}' \
+    > ${sample}.acmg_gaps_lt30.annot.bed
+  """
+}
+//process MosdepthCoverage {
+//  tag "$sample"
+//  publishDir "${params.outdir}/${sample}/qc", mode: 'copy'
+//  input:
+//    tuple val(sample), path(bam), path(bai)
+//    path bed
+//  output:
+//    tuple val(sample),
+//      path("${sample}.mosdepth.summary.txt"),
+//      path("${sample}.regions.bed.gz"),
+//      path("${sample}.thresholds.bed.gz"),
+//      path("${sample}.quantized.bed.gz"),
+//      path("${sample}_coverage_summary.overall.txt"),
+//      path("${sample}.acmg_gaps_lt20.bed"),
+//      path("${sample}.acmg_gaps_lt30.bed"),
+//      path("${sample}.acmg_gaps_lt20.annot.bed"),
+//      path("${sample}.acmg_gaps_lt30.annot.bed")
+//  script:
+//  """
+//  set -euo pipefail
+//  export MOSDEPTH_Q0=LT20
+//  export MOSDEPTH_Q1=GE20_LT30
+//  export MOSDEPTH_Q2=GE30
+//
+//  mosdepth --no-per-base --by $bed --thresholds 10,20,30,50,100 --quantize 0:20:30: --fast-mode $sample $bam
+//  python ${params.scriptdir}/summarize_mosdepth.py \
+//    --prefix $sample \
+//    --summary ${sample}.mosdepth.summary.txt \
+//    --thresholds ${sample}.thresholds.bed.gz \
+//    --out ${sample}_coverage_summary.overall.txt
+//
+//  zcat ${sample}.quantized.bed.gz | awk '\$4=="LT20"' | bedtools intersect -wa -a - -b $bed | bedtools sort -i - | bedtools merge -i - > ${sample}.acmg_gaps_lt20.bed
+//  zcat ${sample}.quantized.bed.gz | awk '\$4=="LT20" || \$4=="GE20_LT30"' | bedtools intersect -wa -a - -b $bed | bedtools sort -i - | bedtools merge -i - > ${sample}.acmg_gaps_lt30.bed
+//
+//  bedtools intersect -wao -a ${sample}.acmg_gaps_lt20.bed -b $bed | \
+//    awk 'BEGIN{OFS="\t"}{ label = (\$7 != "" && \$7 != ".") ? \$7 : \$4 ":" \$5 "-" \$6; print \$1,\$2,\$3,label}' > ${sample}.acmg_gaps_lt20.annot.bed
+//
+//  bedtools intersect -wao -a ${sample}.acmg_gaps_lt30.bed -b $bed | \
+//    awk 'BEGIN{OFS="\t"}{ label = (\$7 != "" && \$7 != ".") ? \$7 : \$4 ":" \$5 "-" \$6; print \$1,\$2,\$3,label}' > ${sample}.acmg_gaps_lt30.annot.bed
+//  """
+//}
 
 process SexCheck {
   tag "$sample"
@@ -259,6 +333,22 @@ process VEP_Annotate {
   publishDir "${params.outdir}/${sample}/vcf", mode: 'copy'
   input:
     tuple val(sample), path(vcf)
+    path vep_cache
+    path vep_fasta
+    path vep_fasta_fai
+    path revel_vcf
+    path revel_vcf_tbi
+    path alpha_missense_vcf
+    path alpha_missense_vcf_tbi
+    path clinvar_vcf
+    path clinvar_vcf_tbi
+    path spliceai_snv_vcf
+    path spliceai_snv_vcf_tbi
+    path spliceai_indel_vcf
+    path spliceai_indel_vcf_tbi
+    path bayesdel_vcf
+    path bayesdel_vcf_tbi
+    path vep_plugins
   output:
     tuple val(sample), path("${sample}.vep.vcf")
   script:
@@ -268,13 +358,16 @@ process VEP_Annotate {
   vep \
     -i INPUT_FOR_VEP.vcf \
     -o ${sample}.vep.vcf \
-    --offline --cache --dir_cache /cache --dir_plugins /plugins \
-    --fasta /cache/\$(basename "${params.vep_fasta}") \
+    --offline --cache --dir_cache ${vep_cache} \
+    --dir_plugins ${vep_plugins} \
+    --fasta ${vep_fasta} \
     --assembly GRCh38 --species homo_sapiens \
-    --hgvs --symbol --vcf --everything --canonical \
-    --plugin REVEL,/cache/\$(basename "${params.revel_vcf}") \
-    --plugin AlphaMissense,file=/cache/\$(basename "${params.alpha_missense_vcf}"),cols=am_pathogenicity:am_class \
-    --custom /cache/ClinVar/\$(basename "${params.clinvar_vcf}"),ClinVar,vcf,exact,0,CLNSIG,CLNREVSTAT,ALLELEID
+    --hgvs --symbol --vcf --everything --canonical --merged \
+    --plugin REVEL,${revel_vcf} \
+    --plugin AlphaMissense,file=${alpha_missense_vcf},cols=am_pathogenicity:am_class \
+    --plugin SpliceAI,snv=${spliceai_snv_vcf},indel=${spliceai_indel_vcf} \
+    --plugin BayesDel,file=${bayesdel_vcf} \
+    --custom ${clinvar_vcf},ClinVar,vcf,exact,0,CLNSIG,CLNREVSTAT,ALLELEID
   """
 }
 
@@ -289,13 +382,14 @@ process LeanReport {
           path(sex_check),
           path(gaps20), path(gaps30),
           path(thresholds)
+    each path(script)
   output:
-    tuple val(sample), path("${sample}_variants_lean.xlsx")
+    tuple val(sample), path("${sample}_report/${sample}_variants_lean.xlsx")
   script:
   """
   mkdir -p ${sample}_report
-  python ${params.scriptdir}/generate_lean_report_org.py \
-    $vcf $exon_cov $r1r2 $frstrand ${sample}_variants_lean.xlsx \
+  python ${script} \
+    $vcf $exon_cov $r1r2 $frstrand ${sample}_report/${sample}_variants_lean.xlsx \
     --sample-id ${sample} --assay WES --build GRCh38 \
     --flagstat ${flagstat} --stats ${stats} \
     --mosdepth-summary ${mosdepth_summary} \
@@ -310,15 +404,16 @@ process GENERATE_ACMG_REPORT {
   publishDir "${params.outdir}/${sample}/reports", mode: 'copy'
   input:
     tuple val(sample), path(excel_file)
+    each path(python_skeleton)
+    each path(template_dir)
   output:
     tuple val(sample), path("${sample}_report/${sample}_clinical_report.html")
   script:
   """
-  #mkdir -p ${sample}_report
-  python ${params.scriptdir}/python-skeleton/generate_report.py \
+  python ${python_skeleton}/generate_report.py \
     ${excel_file} ${sample}_report \
     --sample-id ${sample} \
-    --template-dir ${params.template_dir} \
+    --template-dir ${template_dir} \
     --format html
   """
 }
@@ -335,33 +430,54 @@ workflow POST_SAREK {
   main:
     // join per-sample → (s//ample, vcf, bam, bai)
     sample_inputs = vcf_ch.join(bam_ch)
-
+    script_ch = Channel.fromPath("${params.scriptdir}/generate_lean_report_org.py").first()
+    report_script_ch = Channel.fromPath("${params.scriptdir}/python-skeleton/", type: 'dir').first()
+    template_dir_ch = Channel.fromPath("${params.template_dir}", type: 'dir').first()
     // VCF path
-    BedFilterVCF(sample_inputs.map { s, vcf, bam, bai -> tuple(s, vcf, bam) }, bed_ch)
+    BedFilterVCF(sample_inputs.map { s, vcf, bam, bai -> tuple(s, vcf) }, bed_ch)
     NormalizeVCF(BedFilterVCF.out)
     FilterVCF(NormalizeVCF.out)
     AddVAF(FilterVCF.out)
-    vep_ch = params.run_vep ? VEP_Annotate(AddVAF.out) : AddVAF.out   // (sample, vcf)
+    vep_ch = params.run_vep ? VEP_Annotate(
+      AddVAF.out, 
+      file(params.vep_cache), 
+      file(params.vep_fasta), 
+      file(params.vep_fasta + ".fai"), 
+      file(params.revel_vcf), 
+      file(params.revel_vcf + ".tbi"), 
+      file(params.alpha_missense_vcf), 
+      file(params.alpha_missense_vcf + ".tbi"), 
+      file(params.clinvar_vcf), 
+      file(params.clinvar_vcf + ".tbi"), 
+      file(params.spliceai_snv_vcf), 
+      file(params.spliceai_snv_vcf + ".tbi"),
+      file(params.spliceai_indel_vcf), 
+      file(params.spliceai_indel_vcf + ".tbi"),
+      file(params.bayesdel_vcf), 
+      file(params.bayesdel_vcf + ".tbi"),
+      file(params.vep_plugins)
+      ) : AddVAF.out  // (sample, vcf)
 
     // BAM path
     BedFilterBAM(sample_inputs.map { s, vcf, bam, bai -> tuple(s, vcf, bam) }, bed_ch)
-    bam_sample_ch = BedFilterBAM.out.map { s, vcf, bam, bai -> tuple(s, bam, bai) }
+    bam_sample_ch = BedFilterBAM.out.map { s, bam, bai -> tuple(s, bam, bai) }
 
     CoverageSummary(bam_sample_ch.map { s, bam, bai -> tuple(s, bam) }, bed_ch)
     R1R2Ratio(bam_sample_ch, bed_ch)
     ForwardReverseRatio(bam_sample_ch, bed_ch)
     SamtoolsFlagstat(bam_sample_ch.map { s, bam, bai -> tuple(s, bam) })
     SamtoolsStats(bam_sample_ch.map { s, bam, bai -> tuple(s, bam) })
-    MosdepthCoverage(bam_sample_ch, bed_ch)
+    MosdepthRun(bam_sample_ch, bed_ch)
+    CoverageGapsAnnotation(MosdepthRun.out.map { s, summary, thresholds, quantized -> tuple(s, quantized, thresholds) }, bed_ch)
     SexCheck(bam_sample_ch.map { s, bam, bai -> tuple(s, bam) })
     BcftoolsStats(vep_ch.map { s, vcf -> tuple(s, vcf) })
 
     // prepare joins keyed by sample
     exon_cov_ch         = CoverageSummary.out.map { s, summary, per_base -> tuple(s, summary) }
-    gaps20_ch           = MosdepthCoverage.out.map { s, summary, regions, thresholds, quantized, overall, g20, g30, a20, a30 -> tuple(s, a20) }
-    gaps30_ch           = MosdepthCoverage.out.map { s, summary, regions, thresholds, quantized, overall, g20, g30, a20, a30 -> tuple(s, a30) }
-    mosdepth_summary_ch = MosdepthCoverage.out.map { s, summary, regions, thresholds, quantized, overall, g20, g30, a20, a30 -> tuple(s, overall) }
-    thresholds_ch       = MosdepthCoverage.out.map { s, summary, regions, thresholds, quantized, overall, g20, g30, a20, a30 -> tuple(s, thresholds) }
+    gaps20_ch           = CoverageGapsAnnotation.out.map { s, g20, g30, a20, a30 -> tuple(s, a20) }
+    gaps30_ch           = CoverageGapsAnnotation.out.map { s, g20, g30, a20, a30 -> tuple(s, a30) }
+    mosdepth_summary_ch = MosdepthRun.out.map { s, summary, thresholds, quantized -> tuple(s, summary) }
+    thresholds_ch       = MosdepthRun.out.map { s, summary, thresholds, quantized -> tuple(s, thresholds) }
 
     // join all for LeanReport
     lean_input_ch = vep_ch
@@ -375,7 +491,6 @@ workflow POST_SAREK {
       .join(gaps20_ch)
       .join(gaps30_ch)
       .join(thresholds_ch)
-
-    LeanReport(lean_input_ch)
-    GENERATE_ACMG_REPORT(LeanReport.out)
+    LeanReport(lean_input_ch, script_ch)
+    GENERATE_ACMG_REPORT(LeanReport.out, report_script_ch, template_dir_ch)
 }

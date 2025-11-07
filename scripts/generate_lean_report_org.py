@@ -168,7 +168,29 @@ def parse_mosdepth_summary(path):
         # silently ignore parse errors
         return out
     return out
+def parse_mosdepth_summary_regions(path):
+    """Parse mosdepth summary.txt to get mean coverage and min/max across regions."""
+    out = {}
+    if not path or not os.path.exists(path):
+        return out
+    try:
+        df = pd.read_csv(path, sep="\t")
+        if df.empty:
+            return out
 
+        # Focus on on-target regions (rows ending with _region)
+        region_df = df[df["chrom"].astype(str).str.endswith("_region")].copy()
+        if region_df.empty:
+            region_df = df.copy()
+
+        # Compute weighted mean coverage across regions
+        cov_mean = (region_df["mean"] * region_df["length"]).sum() / region_df["length"].sum()
+        out["Mean_Coverage"] = round(float(cov_mean), 2)
+
+    except Exception as e:
+        print(f"[WARN] Failed to parse mosdepth summary {path}: {e}")
+        return out
+    return out
 def _num(x):
     # handles "78,05" and "100%" etc.
     return pd.to_numeric(str(x).replace("%","").replace(",", "."), errors="coerce")
@@ -551,6 +573,38 @@ def select_csq_entry(var, csq_format, prefer_clinvar=True):
 
     return (rows_alt[0] if rows_alt else rows[0]) if rows else None
 
+def _num_or_none(x):
+    try:
+        if x is None or x == ".":
+            return None
+        return float(x)
+    except Exception:
+        return None
+
+def parse_spliceai(val):
+    """Return the max SpliceAI DS value and its event name."""
+    if not val:
+        return None, None
+    best_ds, best_event = None, None
+    for entry in str(val).split(","):
+        parts = entry.split("|")
+        if len(parts) < 10:
+            continue
+        try:
+            ds_ag, ds_al, ds_dg, ds_dl = map(float, parts[2:6])
+        except ValueError:
+            continue
+        ds_map = {
+            "DS_AG": ds_ag,
+            "DS_AL": ds_al,
+            "DS_DG": ds_dg,
+            "DS_DL": ds_dl,
+        }
+        event, ds = max(ds_map.items(), key=lambda kv: kv[1])
+        if best_ds is None or ds > best_ds:
+            best_ds, best_event = ds, event
+    return best_ds, best_event
+
 # -------------------------
 # Coverage summary loader (your format)
 # -------------------------
@@ -625,7 +679,7 @@ for var in vcf:
     chrom, pos, ref = var.CHROM, var.POS, var.REF
     alt = ",".join(var.ALT) if var.ALT else ""
     filt = var.FILTER or "PASS"
-
+    qual = _num_or_none(getattr(var, "QUAL", None))
     dp = var.format("DP")[0][0] if "DP" in var.FORMAT else var.INFO.get("DP")
     vaf = var.format("VAF")[0][0] if "VAF" in var.FORMAT else None
     gq  = var.format("GQ")[0][0] if "GQ" in var.FORMAT else None
@@ -639,7 +693,7 @@ for var in vcf:
         except: pass
 
     gene = transcript = hgvsc = hgvsp = consequence = exon = intron = impact = None
-    clinvar = alleleid = gnomad_af = revel = spliceai = cadd = None
+    clinvar = alleleid = gnomad_af = revel = spliceai_ds = spliceai_event = cadd = mane_id = bayesdel_score = clinvar_review_status = stars = am_pathogenicity = am_class = None
     ann = {}
     if csq_format:
         ann = select_csq_entry(var, csq_format) or {}
@@ -648,6 +702,7 @@ for var in vcf:
         hgvsc       = ann.get("HGVSc")
         hgvsp       = ann.get("HGVSp")
         consequence = ann.get("Consequence")
+        mane_id = ann.get("MANE_SELECT")
         exon        = ann.get("EXON")
         intron      = ann.get("INTRON")
         impact      = ann.get("IMPACT")
@@ -655,7 +710,13 @@ for var in vcf:
         am_class    = ann.get("am_class")
         gnomad_af   = ann.get("gnomADg_AF") or ann.get("gnomADe_AF") or ann.get("AF")
         revel       = ann.get("REVEL")
-        spliceai    = ann.get("SpliceAI")
+        spliceai_fields = {
+        "DS_AG": ann.get("SpliceAI_pred_DS_AG"),
+        "DS_AL": ann.get("SpliceAI_pred_DS_AL"),
+        "DS_DG": ann.get("SpliceAI_pred_DS_DG"),
+        "DS_DL": ann.get("SpliceAI_pred_DS_DL"),
+        }
+        bayesdel_score = ann.get("BayesDel")
         clinvar     = ann.get("ClinVar_CLNSIG") or ann.get("CLIN_SIG")
         alleleid    = ann.get("ClinVar_ALLELEID") or ann.get("ALLELEID")
         clinvar_review_status = ann.get("ClinVar_CLNREVSTAT") or ann.get("CLNREVSTAT")
@@ -664,9 +725,15 @@ for var in vcf:
     cov = get_exon_cov(chrom, pos)
     r1r2 = get_r1r2(chrom, pos)
     fr = get_fr(chrom, pos)
-    revstat = clinvar_review_status
+    revstat = clinvar_review_status if clinvar_review_status is not None else ""
     stars = clinvar_stars_from_revstat(revstat)
-    
+
+    spliceai_scores = {k: float(v) for k, v in spliceai_fields.items() if v not in [None, ""]}
+    if spliceai_scores:
+        spliceai_event, spliceai_ds = max(spliceai_scores.items(), key=lambda kv: kv[1])
+    else:
+        spliceai_event, spliceai_ds = None, None
+
     try:
         r1 = int(r1r2[0]); r2 = int(r1r2[1])
         r1r2_abs = round(r1 / r2, 2) if r2 > 0 else None
@@ -681,10 +748,12 @@ for var in vcf:
         "Chrom": chrom, "Pos": pos, "Ref": ref, "Alt": alt,
         "Variant": f"{chrom}:{pos}:{ref}:{alt}",
         "FILTER": filt,
+        "QUAL": qual,
         "Gene": gene, "Transcript": transcript,
         "Consequence": consequence, "Impact": impact,
         "Exon": exon, "Intron": intron,
         "HGVSc": hgvsc, "HGVSp": hgvsp,
+        "MANE_ID": mane_id,
         "GT": f"{gt[0]}/{gt[1]}",
         "AD_Ref": ad_ref, "AD_Alt": ad_alt,
         "DP": dp, "GQ": gq, "VAF": vaf, "Zygosity": zyg,
@@ -694,7 +763,7 @@ for var in vcf:
         "ExonCov100": cov.get(">=100x","NA"),
         "R1": r1r2[0], "R2": r1r2[1], "R1R2_frac": r1r2[2], "R1R2_abs": r1r2_abs,
         "FWD": fr[0], "REV": fr[1], "FWD_frac": fr[2], "REV_frac": fr[3], "FR_abs": fr_abs,
-        "gnomAD_AF": gnomad_af, "REVEL": revel, "SpliceAI": spliceai, "CADD": cadd, "AM_Pathogenicity": am_pathogenicity, "AM_Class": am_class,
+        "gnomAD_AF": gnomad_af, "REVEL": revel, "SpliceAI_DS_max": spliceai_ds, "SpliceAI_Event": spliceai_event, "BayesDel_score": bayesdel_score, "CADD": cadd, "AM_Pathogenicity": am_pathogenicity, "AM_Class": am_class,
         "ClinVar": clinvar, "ClinVar_ReviewStatus": revstat, "ClinVar_Stars": stars, "ALLELEID": alleleid, "ClinVar_ALLELEID": alleleid,  
         "ClinVar_StarsGlyph" : clinvar_star_glyph(stars),
         "HGVS_full": None
@@ -728,7 +797,7 @@ with pd.ExcelWriter(args.xlsx_out) as xw:
     tmp = parse_picard_alignment(args.picard_align);  ss.update(tmp)
     tmp = parse_picard_insert(args.picard_insert);    ss.update({k:v for k,v in tmp.items() if v is not None})
     # Mosdepth means
-    ss.update(parse_mosdepth_summary(args.mosdepth_summary))
+    ss.update(parse_mosdepth_summary_regions(args.mosdepth_summary))
     ss.update(acmg_pct_regions_covered(args.acmg_thresholds))
     # Contamination & sex
     ss.update(parse_verifybamid(args.verifybamid))
@@ -768,8 +837,8 @@ with pd.ExcelWriter(args.xlsx_out) as xw:
     if sf_genes:
         acmg = acmg[acmg["Gene"].isin(sf_genes)]
     acmg_cols = [
-        "Gene","Variant","HGVSc","HGVSp","Zygosity","GT","AD_Ref","AD_Alt","DP","GQ",
-        "Consequence","Exon","Intron","ClinVar","ClinVar_ReviewStatus","ClinVar_Stars","ClinVar_StarsGlyph","ClinVar_Link","gnomAD_AF","REVEL","SpliceAI","CADD","AM_Pathogenicity","AM_Class","HGVS_full"
+        "Gene","Variant","HGVSc","HGVSp","MANE_ID","Zygosity","GT","AD_Ref","AD_Alt","DP","GQ","QUAL",
+        "Consequence","Exon","Intron","ClinVar","ClinVar_ReviewStatus","ClinVar_Stars","ClinVar_StarsGlyph","ClinVar_Link","gnomAD_AF","REVEL","SpliceAI_DS_max","SpliceAI_Event","BayesDel_score","AM_Pathogenicity","AM_Class","HGVS_full"
     ]
     acmg[acmg_cols].to_excel(xw, index=False, sheet_name="ACMG SF (P-LP)")
 
@@ -818,8 +887,8 @@ with pd.ExcelWriter(args.xlsx_out) as xw:
 
     # 5) PASS variant table
     pass_cols = [
-        "Variant","Gene","HGVSc","HGVSp","Transcript","Consequence","GT","Zygosity","AD_Ref","AD_Alt","DP","GQ",
-        "FILTER","VAF","gnomAD_AF","ClinVar","ClinVar_ReviewStatus","ClinVar_Stars","ClinVar_StarsGlyph","REVEL","SpliceAI","CADD","AM_Pathogenicity","AM_Class","HGVS_full"
+        "Variant","Gene","HGVSc","HGVSp","MANE_ID","Transcript","Consequence","GT","Zygosity","AD_Ref","AD_Alt","DP","GQ","QUAL",
+        "FILTER","VAF","gnomAD_AF","ClinVar","ClinVar_ReviewStatus","ClinVar_Stars","ClinVar_StarsGlyph","REVEL","SpliceAI_DS_max","SpliceAI_Event","BayesDel_score","AM_Pathogenicity","AM_Class","HGVS_full"
     ]
     df[df["FILTER"]=="PASS"][pass_cols].to_excel(xw, index=False, sheet_name="PASS variants")
 

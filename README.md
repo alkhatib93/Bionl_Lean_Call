@@ -6,13 +6,17 @@ Germline variant calling and reporting for ACMG SF genes, including QC and funct
 
 ## Inputs
 
-The pipeline supports two input modes:
+The pipeline can run in three modes:
 
-### Option 1: Run from FASTQ files (Full Pipeline)
+### Mode 1: Full Pipeline (from FASTQ files)
 
-Provide a CSV file listing your samples and their FASTQ files.
+Run the complete variant calling pipeline followed by post-processing.
 
-**Example:**
+**Required parameters:**
+- `--input`: Samplesheet CSV
+- `--outdir`: Output directory
+
+**Example samplesheet:**
 
 ```csv
 patient,sex,status,sample,fastq_1,fastq_2,lane
@@ -30,32 +34,39 @@ The CSV should include:
 - **fastq_2**: Path to reverse reads file
 - **lane**: Sequencing lane number
 
-**OR**
+### Mode 2: Post-Processing from Variant Calling Output Directory
 
-### Option 2: Run from Sarek Output (Post-Processing Only)
+Use existing variant calling results (automatic file discovery).
 
-If you already have Sarek results (BAM and VCF files), use a post-processing sample sheet:
+**Required parameters:**
+- `--variant_calling_outdir`: Path to variant calling results directory
+- `--outdir`: Output directory
 
-**Example (`post_samplesheet.csv`):**
+The pipeline automatically finds VCF and BAM files in the variant calling output structure:
+- VCF files: `{variant_calling_outdir}/variant_calling/*/*/*.vcf.gz`
+- BAM files: `{variant_calling_outdir}/preprocessing/mapped/*/*.sorted.bam`
+
+### Mode 3: Post-Processing with Custom File Paths
+
+Use a CSV to specify exact paths to VCF and BAM files.
+
+**Required parameters:**
+- `--post_samplesheet`: CSV with sample, VCF, BAM, and BAI paths
+- `--outdir`: Output directory
+
+**Example post_samplesheet.csv:**
 
 ```csv
 sample,vcf,bam,bai
 HG003,/path/to/HG003.deepvariant.vcf.gz,/path/to/HG003.sorted.bam,/path/to/HG003.sorted.bam.bai
+HG004,/path/to/HG004.deepvariant.vcf.gz,/path/to/HG004.sorted.bam,/path/to/HG004.sorted.bam.bai
 ```
 
 The CSV should include:
 - **sample**: Sample identifier
-- **vcf**: Path to the VCF file (can be from DeepVariant, FreeBayes, etc.)
-- **bam**: Path to the aligned BAM file
-- **bai**: Path to the BAM index file
-
-You can provide either:
-- `--sarek_outdir`: Path to a Sarek output directory (automatically finds VCF/BAM files)
-- `--post_samplesheet`: Path to a CSV with explicit file paths (use this for more control)
-
-### Output Directory
-
-Specify where you want results saved. The pipeline will create organized folders for each sample.
+- **vcf**: Full path to variant call file
+- **bam**: Full path to aligned BAM file
+- **bai**: Full path to BAM index file
 
 ---
 
@@ -91,17 +102,32 @@ outdir/
 
 1. Navigate to the pipeline in your platform interface
 2. Choose your input mode:
-   - **Full pipeline**: Upload or select your **FASTQ sample sheet** (CSV file)
-   - **Post-processing**: Upload **post_samplesheet.csv** OR specify **Sarek output directory**
+   - **Mode 1**: Upload `--input` samplesheet (FASTQ files)
+   - **Mode 2**: Specify `--variant_calling_outdir` (existing variant calling results)
+   - **Mode 3**: Upload `--post_samplesheet` (custom VCF/BAM paths)
 3. Specify your **output directory** path
 4. Click **Run**
 
 ### Command Line Examples
 
-**Full pipeline (from FASTQ files):**
+**Mode 1 - Full pipeline from FASTQ files:**
 ```bash
 nextflow run main.nf \
-  --samplesheet samples.csv \
+  --input samples.csv \
+  --outdir results
+```
+
+**Mode 2 - Post-process existing variant calling output:**
+```bash
+nextflow run main.nf \
+  --variant_calling_outdir /path/to/variant_calling/results \
+  --outdir results
+```
+
+**Mode 3 - Post-process with custom file paths:**
+```bash
+nextflow run main.nf \
+  --post_samplesheet data/post_samplesheet.csv \
   --outdir results
 ```
 
