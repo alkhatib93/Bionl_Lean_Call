@@ -1,221 +1,329 @@
 nextflow.enable.dsl=2
 
-// ── Import Sarek pieces from the vendored repo (per your grep paths) ───────────
+// ═══════════════════════════════════════════════════════════════════════════
+// IMPORTS
+// ═══════════════════════════════════════════════════════════════════════════
+
 include { PIPELINE_INITIALISATION; PIPELINE_COMPLETION } \
   from './external/sarek/subworkflows/local/utils_nfcore_sarek_pipeline'
 
 include { NFCORE_SAREK } \
   from './external/sarek/main.nf'
 
-// ── (Optional) Import your post-Sarek mini-pipeline (e.g. VEP) ─────────────────
 include { POST_SAREK } from './modules/vep.nf'
 
-// ── Params (defaults). Map your samplesheet → Sarek's expected --input ─────────
-//params.samplesheet   = params.samplesheet   ?: "${workflow.projectDir}/data/samplesheet.csv"
-params.input = params.input ?: params.samplesheet
-//params.remove('samplesheet')
-params.outdir = params.outdir ?: params.output
-//params.outdir  = params.outdir  ?: "${workflow.projectDir}/results/sarek"
-params.bed     = params.bed     ?: "${workflow.projectDir}/data/annotated_merged_MANE_deduped.bed"
-//params.intervals     = params.intervals     ?: "${workflow.projectDir}/data/chr22_targets.bed"
-params.run_variant_calling = (params.run_variant_calling instanceof Boolean) ? params.run_variant_calling : true
-// Any extra Sarek params you'll pass on CLI (e.g., --genome, --fasta, --tools, …)
-// ── Fail fast if missing ──
-if( params.run_variant_calling ) {
-  if( !params.input )  error "Missing --input (samplesheet CSV) when run_variant_calling=true"
-  if( !params.outdir ) error "Missing --outdir when run_variant_calling=true"
+// ═══════════════════════════════════════════════════════════════════════════
+// PARAMETERS & VALIDATION
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Default parameters
+params.input                  = params.input ?: params.samplesheet
+params.outdir                 = params.outdir ?: params.output
+params.bed                    = params.bed ?: "${workflow.projectDir}/data/annotated_merged_MANE_deduped.bed"
+params.run_variant_calling    = params.run_variant_calling instanceof Boolean ? params.run_variant_calling : true
+
+// Validate required parameters
+if (params.run_variant_calling) {
+    if (!params.input)  error "❌ Missing --input (samplesheet CSV) when run_variant_calling=true"
+    if (!params.outdir) error "❌ Missing --outdir when run_variant_calling=true"
 } else {
-  //if( !params.variant_calling_outdir ) error "Missing --variant_calling_outdir when run_variant_calling=false"
-  if( !params.post_samplesheet && !params.variant_calling_outdir )
-    error "When run_variant_calling=false provide either --post_samplesheet or --variant_calling_outdir"
-  if( params.post_samplesheet && params.variant_calling_outdir )
-    error "Cannot provide both --post_samplesheet and --variant_calling_outdir. Choose one."
-}
-// ── Helper workflow to collect variant calling outputs ────────────────────────────────────
-workflow COLLECT_SAREK_OUTPUTS {
-  take:
-    trigger    // A channel that acts as a completion signal
-    outdir     // The output directory to search
-
-  main:
-    def isGCS = outdir.toString().startsWith('gs://')
+    if (!params.post_samplesheet && !params.variant_calling_outdir)
+        error "❌ When run_variant_calling=false provide either --post_samplesheet or --variant_calling_outdir"
     
-    // Use trigger to wait, then collect files
-    vcf_ch = trigger
-      .flatMap { 
-        file("${outdir}/variant_calling/*/*/*.vcf.gz", checkIfExists: !isGCS)
-      }
-      .filter { vcf -> 
-        vcf.name.endsWith('.vcf.gz') && 
-        !vcf.name.contains('.g.vcf.gz') && 
-        !vcf.name.endsWith('.tbi') 
-      }
-      .map { vcf -> tuple(vcf.parent.name, vcf) }
-
-    bam_ch = trigger
-      .flatMap { 
-        file("${outdir}/preprocessing/mapped/*/*.sorted.bam", checkIfExists: !isGCS)
-      }
-      .map { bam -> 
-        def sample = bam.parent.name
-        println "DEBUG: bam = ${bam}"
-        println "DEBUG: bam.toString() = ${bam.toString()}"
-        println "DEBUG: bam.class = ${bam.class}"
-        def bamPath = bam.toString()
-        def baiPath = "${bamPath}.bai"
-        
-        def bai
-        if (isGCS) {
-          bai = file(baiPath, checkIfExists: false)
-        } else {
-          bai = file(baiPath)
-          if (!bai.exists()) {
-            bai = file("${bam.parent}/${bam.baseName}.bai")
-            if (!bai.exists()) {
-              error "BAM index not found for ${bam}"
-            }
-          }
-        }
-        
-        tuple(sample, bam, bai)
-      }
-
-  emit:
-    vcf = vcf_ch
-    bam = bam_ch
+    if (params.post_samplesheet && params.variant_calling_outdir)
+        error "❌ Cannot provide both --post_samplesheet and --variant_calling_outdir. Choose one."
 }
 
-// ── Top-level pipeline ─────────────────────────────────────────────────────────
-workflow {
+// ═══════════════════════════════════════════════════════════════════════════
+// HELPER FUNCTIONS
+// ═══════════════════════════════════════════════════════════════════════════
 
-  // ── BED channel (needed for all scenarios) ──
-  def bedFile = params.bed ? file(params.bed) : null
-  if (!bedFile?.exists()) error "BED file not found: ${params.bed}"
-  bed_ch = Channel.value(bedFile)
+def isGcsPath(path) {
+    return path.toString().startsWith('gs://')
+}
 
-    if (params.variant_calling_outdir) {
-      log.info ">>> Skipping variant calling run, using existing results in ${params.variant_calling_outdir}"
+def validateBedFile() {
+    def bedFile = params.bed ? file(params.bed) : null
+    if (!bedFile?.exists()) {
+        error "❌ BED file not found: ${params.bed}"
+    }
+    return bedFile
+}
 
-      def isGCS = params.variant_calling_outdir.startsWith('gs://')
+// ═══════════════════════════════════════════════════════════════════════════
+// WORKFLOWS
+// ═══════════════════════════════════════════════════════════════════════════
 
-      // ── Collect VCFs ──
-      vcf_ch = Channel
-        .fromPath("${params.variant_calling_outdir}/variant_calling/*/*/*.vcf.gz", checkIfExists: !isGCS)
-        .filter { vcf -> 
-          vcf.name.endsWith('.vcf.gz') && 
-          !vcf.name.contains('.g.vcf.gz') && 
-          !vcf.name.endsWith('.tbi') 
-        }
-        .map { vcf -> 
-          def sample = vcf.parent.name
-          tuple(sample, vcf) 
-        }
+workflow COLLECT_VARIANT_CALLING_OUTPUTS {
+    take:
+        trigger    // Completion signal channel
+        outdir     // Output directory to search
 
-      // ── Collect BAMs with BAI (GCS-aware) ──
-      bam_ch = Channel
-        .fromPath("${params.variant_calling_outdir}/preprocessing/mapped/*/*.sorted.bam", checkIfExists: !isGCS)
-        .map { bam -> 
-          def sample = bam.parent.name
-          // DEBUG: Print the actual path
-          println "DEBUG: bam = ${bam}"
-          println "DEBUG: bam.toString() = ${bam.toString()}"
-          println "DEBUG: bam.class = ${bam.class}"
-          // Construct BAI path from BAM path
-          def bamPath = bam.toString()
-          def baiPath = "${bamPath}.bai"
-
-          def bai
-          if (isGCS) {
-            // For GCS, just create a path object without validation
-            bai = file(baiPath, checkIfExists: false)
-          } else {
-            // For local files, validate existence
-            bai = file(baiPath)
-            if (!bai.exists()) {
-              bai = file("${bam.parent}/${bam.baseName}.bai")
-              if (!bai.exists()) {
-                error "BAM index not found for ${bam}. Expected ${baiPath}"
-              }
+    main:
+        def isGCS = isGcsPath(outdir)
+        
+        // Collect VCFs
+        vcf_ch = trigger
+            .flatMap { 
+                file("${outdir}/variant_calling/*/*/*.vcf.gz", checkIfExists: !isGCS)
             }
-          }
+            .filter { vcf -> 
+                vcf.name.endsWith('.vcf.gz') && 
+                !vcf.name.contains('.g.vcf.gz') && 
+                !vcf.name.endsWith('.tbi') 
+            }
+            .map { vcf -> tuple(vcf.parent.name, vcf) }
 
-          tuple(sample, bam, bai) 
-        }
+        // Collect BAMs with BAI
+        bam_ch = trigger
+            .flatMap { 
+                file("${outdir}/preprocessing/mapped/*/*.sorted.bam", checkIfExists: !isGCS)
+            }
+            .map { bam -> 
+                def sample = bam.parent.name
+                def bamPath = bam.toString()
+                def baiPath = "${bamPath}.bai"
+                
+                def bai
+                if (isGCS) {
+                    bai = file(baiPath, checkIfExists: false)
+                } else {
+                    bai = file(baiPath)
+                    if (!bai.exists()) {
+                        bai = file("${bam.parent}/${bam.baseName}.bai")
+                        if (!bai.exists()) {
+                            error "❌ BAM index not found for ${bam}"
+                        }
+                    }
+                }
+                
+                tuple(sample, bam, bai)
+            }
 
-      vcf_ch.view { s, v -> "VCF -> ${s} :: ${v}" }
-      bam_ch.view { s, a, i -> "ALN -> ${s} :: ${a} | IDX ${i}" }
+    emit:
+        vcf = vcf_ch
+        bam = bam_ch
+}
 
-      vcf_ch.ifEmpty { error "No VCFs found in ${params.variant_calling_outdir}/variant_calling/*/*/*.vcf.gz" }
-      bam_ch.ifEmpty  { error "No BAMs found in ${params.variant_calling_outdir}/preprocessing/mapped/*/*.sorted.bam" }
+workflow RUN_FROM_VARIANT_CALLING_OUTDIR {
+    take:
+        variant_calling_outdir
+        bed_ch
 
-      POST_SAREK(vcf_ch, bam_ch, bed_ch)
+    main:
+        def isGCS = isGcsPath(variant_calling_outdir)
+        
+        log.info """
+        ╔════════════════════════════════════════════════════════════╗
+        ║  Using existing variant calling results                    ║
+        ║  Location: ${variant_calling_outdir}
+        ╚════════════════════════════════════════════════════════════╝
+        """.stripIndent()
 
-} else if (params.post_samplesheet) {
-    log.info ">>> Running post-variant calling from custom samplesheet ${params.post_samplesheet}"
+        // Collect VCFs
+        vcf_ch = Channel
+            .fromPath("${variant_calling_outdir}/variant_calling/*/*/*.vcf.gz", checkIfExists: !isGCS)
+            .filter { vcf -> 
+                vcf.name.endsWith('.vcf.gz') && 
+                !vcf.name.contains('.g.vcf.gz') && 
+                !vcf.name.endsWith('.tbi') 
+            }
+            .map { vcf -> 
+                def sample = vcf.parent.name
+                tuple(sample, vcf) 
+            }
 
-    // Read samplesheet and validate files exist
-    Channel
-      .fromPath(params.post_samplesheet, checkIfExists: true)
-      .splitCsv(header: true)
-      .map { row ->
-        def v = file(row.vcf)
-        def b = file(row.bam)
-        def bi = file(row.bai ?: "${b}.bai")
-        if (!v.exists()) error "VCF not found: ${v}"
-        if (!b.exists()) error "BAM not found: ${b}"
-        if (!bi.exists()) {
-          bi = file("${b.parent}/${b.baseName}.bai")
-          if (!bi.exists()) error "BAI not found for ${b}"
-        }
-        tuple(row.sample, v, b, bi)
-      }
-      .multiMap { sample, vcf, bam, bai ->
-        vcf: tuple(sample, vcf)
-        bam: tuple(sample, bam, bai)
-      }
-      .set { result }
+        // Collect BAMs with BAI
+        bam_ch = Channel
+            .fromPath("${variant_calling_outdir}/preprocessing/mapped/*/*.sorted.bam", checkIfExists: !isGCS)
+            .map { bam -> 
+                def sample = bam.parent.name
+                def bamPath = bam.toString()
+                def baiPath = "${bamPath}.bai"
+                
+                def bai
+                if (isGCS) {
+                    bai = file(baiPath, checkIfExists: false)
+                } else {
+                    bai = file(baiPath)
+                    if (!bai.exists()) {
+                        bai = file("${bam.parent}/${bam.baseName}.bai")
+                        if (!bai.exists()) {
+                            error "❌ BAM index not found for ${bam}"
+                        }
+                    }
+                }
+                
+                tuple(sample, bam, bai) 
+            }
+        
+        // Debug output
+        vcf_ch.view { s, v -> "📄 VCF -> ${s} :: ${v.name}" }
+        bam_ch.view { s, a, i -> "🧬 BAM -> ${s} :: ${a.name}" }
+        
+        // Safety checks
+        vcf_ch
+            .count()
+            .subscribe { count ->
+                if (count == 0) {
+                    error "❌ No VCFs found in ${variant_calling_outdir}/variant_calling/*/*/*.vcf.gz"
+                }
+                log.info "✓ Found ${count} VCF file(s)"
+            }
+        
+        bam_ch
+            .count()
+            .subscribe { count ->
+                if (count == 0) {
+                    error "❌ No BAMs found in ${variant_calling_outdir}/preprocessing/mapped/*/*.sorted.bam"
+                }
+                log.info "✓ Found ${count} BAM file(s)"
+            }
 
-    vcf_ch = result.vcf
-    bam_ch = result.bam
+        // Run post-processing
+        POST_SAREK(vcf_ch, bam_ch, bed_ch)
+}
 
-    // ── Run post-variant calling steps ──
-    POST_SAREK(vcf_ch, bam_ch, bed_ch)
+workflow RUN_FROM_POST_SAMPLESHEET {
+    take:
+        post_samplesheet
+        bed_ch
 
-  } else {
-    log.info ">>> Running variant calling as part of the pipeline"
+    main:
+        log.info """
+        ╔════════════════════════════════════════════════════════════╗
+        ║  Using custom post-samplesheet                             ║
+        ║  File: ${post_samplesheet}
+        ╚════════════════════════════════════════════════════════════╝
+        """.stripIndent()
 
-    PIPELINE_INITIALISATION(
-      params.version,
-      params.validate_params,
-      params.monochrome_logs,
-      args,
-      params.outdir,
-      params.input
-    )
+        // Parse samplesheet
+        Channel
+            .fromPath(post_samplesheet, checkIfExists: true)
+            .splitCsv(header: true)
+            .map { row ->
+                def v = file(row.vcf)
+                def b = file(row.bam)
+                def bi = file(row.bai ?: "${b}.bai")
+                
+                // Only validate for non-GCS paths
+                def isGCS = row.vcf.startsWith('gs://')
+                if (!isGCS) {
+                    if (!v.exists()) error "❌ VCF not found: ${v}"
+                    if (!b.exists()) error "❌ BAM not found: ${b}"
+                    if (!bi.exists()) {
+                        bi = file("${b.parent}/${b.baseName}.bai")
+                        if (!bi.exists()) error "❌ BAI not found for ${b}"
+                    }
+                }
+                
+                tuple(row.sample, v, b, bi)
+            }
+            .multiMap { sample, vcf, bam, bai ->
+                vcf: tuple(sample, vcf)
+                bam: tuple(sample, bam, bai)
+            }
+            .set { result }
 
-    NFCORE_SAREK(PIPELINE_INITIALISATION.out.samplesheet)
+        vcf_ch = result.vcf
+        bam_ch = result.bam
+        
+        // Debug output
+        vcf_ch.view { s, v -> "📄 VCF -> ${s} :: ${v.name}" }
+        bam_ch.view { s, a, i -> "🧬 BAM -> ${s} :: ${a.name}" }
 
-    PIPELINE_COMPLETION(
-      params.email,
-      params.email_on_fail,
-      params.plaintext_email,
-      params.outdir,
-      params.monochrome_logs,
-      params.hook_url,
-      NFCORE_SAREK.out.multiqc_report
-    )
+        // Run post-processing
+        POST_SAREK(vcf_ch, bam_ch, bed_ch)
+}
 
-    // Collect outputs after Sarek completes
-    COLLECT_SAREK_OUTPUTS(
-      NFCORE_SAREK.out.multiqc_report,
-      params.outdir
-    )
+workflow RUN_FULL_VARIANT_CALLING {
+    take:
+        bed_ch
 
-    // ── Run post-variant calling steps ──
-    POST_SAREK(
-      COLLECT_SAREK_OUTPUTS.out.vcf, 
-      COLLECT_SAREK_OUTPUTS.out.bam, 
-      bed_ch
-    )
-  }
+    main:
+        log.info """
+        ╔════════════════════════════════════════════════════════════╗
+        ║  Running full variant calling pipeline (Sarek)             ║
+        ╚════════════════════════════════════════════════════════════╝
+        """.stripIndent()
+
+        PIPELINE_INITIALISATION(
+            params.version,
+            params.validate_params,
+            params.monochrome_logs,
+            args,
+            params.outdir,
+            params.input
+        )
+
+        NFCORE_SAREK(PIPELINE_INITIALISATION.out.samplesheet)
+
+        PIPELINE_COMPLETION(
+            params.email,
+            params.email_on_fail,
+            params.plaintext_email,
+            params.outdir,
+            params.monochrome_logs,
+            params.hook_url,
+            NFCORE_SAREK.out.multiqc_report
+        )
+
+        // Collect variant calling outputs
+        COLLECT_VARIANT_CALLING_OUTPUTS(
+            NFCORE_SAREK.out.multiqc_report,
+            params.outdir
+        )
+
+        // Run post-processing
+        POST_SAREK(
+            COLLECT_VARIANT_CALLING_OUTPUTS.out.vcf, 
+            COLLECT_VARIANT_CALLING_OUTPUTS.out.bam, 
+            bed_ch
+        )
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MAIN WORKFLOW
+// ═══════════════════════════════════════════════════════════════════════════
+
+workflow {
+    
+    // Validate and load BED file
+    def bedFile = validateBedFile()
+    bed_ch = Channel.value(bedFile)
+
+    // Route to appropriate sub-workflow
+    if (params.variant_calling_outdir) {
+        RUN_FROM_VARIANT_CALLING_OUTDIR(params.variant_calling_outdir, bed_ch)
+    } 
+    else if (params.post_samplesheet) {
+        RUN_FROM_POST_SAMPLESHEET(params.post_samplesheet, bed_ch)
+    } 
+    else {
+        RUN_FULL_VARIANT_CALLING(bed_ch)
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WORKFLOW COMPLETION
+// ═══════════════════════════════════════════════════════════════════════════
+
+workflow.onComplete {
+    log.info """
+    ╔════════════════════════════════════════════════════════════╗
+    ║  Pipeline completed!                                       ║
+    ║  Status: ${workflow.success ? '✓ SUCCESS' : '✗ FAILED'}
+    ║  Duration: ${workflow.duration}
+    ║  Results: ${params.outdir}
+    ╚════════════════════════════════════════════════════════════╝
+    """.stripIndent()
+}
+
+workflow.onError {
+    log.error """
+    ╔════════════════════════════════════════════════════════════╗
+    ║  ✗ Pipeline failed                                         ║
+    ║  Error: ${workflow.errorMessage}
+    ╚════════════════════════════════════════════════════════════╝
+    """.stripIndent()
 }
