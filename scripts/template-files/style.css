@@ -127,7 +127,61 @@ body {
   white-space: nowrap;
   border: 0;
 }
+/* ========================================
+   SCROLLABLE COVERAGE TABLE STYLES
+   ======================================== */
 
+/* Scrollable coverage table for HTML view */
+.scrollable-coverage {
+  max-height: 400px;
+  overflow-y: auto;
+  border: 1px solid rgb(var(--border));
+  border-radius: var(--radius);
+  padding: var(--spacing-4);
+  background: rgb(var(--card));
+}
+
+/* Scrollbar styling for better UX */
+.scrollable-coverage::-webkit-scrollbar {
+  width: 8px;
+}
+
+.scrollable-coverage::-webkit-scrollbar-track {
+  background: rgb(var(--muted));
+  border-radius: 4px;
+}
+
+.scrollable-coverage::-webkit-scrollbar-thumb {
+  background: rgb(var(--muted-foreground) / 0.3);
+  border-radius: 4px;
+}
+
+.scrollable-coverage::-webkit-scrollbar-thumb:hover {
+  background: rgb(var(--muted-foreground) / 0.5);
+}
+
+/* Coverage note - hidden by default, shown only in print */
+.coverage-note {
+  display: none;
+  margin-top: var(--spacing-4);
+  font-style: italic;
+  color: rgb(var(--muted-foreground));
+  font-size: 9pt;
+}
+
+/* Dark mode support for scrollable area */
+:root.dark .scrollable-coverage {
+  border-color: rgb(var(--border));
+  background: rgb(var(--card));
+}
+
+:root.dark .coverage-note {
+  color: rgb(var(--muted-foreground));
+}
+
+/* ========================================
+   END SCROLLABLE COVERAGE STYLES
+   ======================================== */
 /* Premium Page Layout */
 .page {
   width: 210mm;
@@ -201,7 +255,40 @@ body {
   .print-button {
     display: none !important;
   }
+  /* ========================================
+  PRINT-SPECIFIC SCROLLABLE COVERAGE STYLES
+  ======================================== */
 
+  /* Remove scrolling in print, show limited rows */
+  .scrollable-coverage {
+   max-height: none !important;
+   overflow: visible !important;
+   border: 1px solid #e5e7eb !important;
+   background: #f9f9f9 !important;
+   page-break-inside: avoid;
+  }
+
+/* Truncate table rows - show only first 10 rows */
+  .scrollable-coverage table tbody tr:nth-child(n+11) {
+   display: none !important;
+  }
+
+/* Show the warning note in PDF */
+  .coverage-note.print-only {
+   display: block !important;
+   page-break-inside: avoid;
+   background-color: #fef3c7 !important;
+   border-left: 4px solid #f59e0b !important;
+   padding: 0.75rem 1rem !important;
+   border-radius: 4px;
+   font-weight: 500;
+   color: #78350f !important;
+   margin-top: 12px !important;
+  }
+
+/* ========================================
+  END PRINT-SPECIFIC SCROLLABLE COVERAGE STYLES
+  ======================================== */
   /* Header print optimization */
   .report-header {
     border-bottom: 2px solid #e5e5e5 !important;
