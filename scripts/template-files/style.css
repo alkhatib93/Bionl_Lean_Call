@@ -1080,12 +1080,12 @@ body {
 }
 
 /* QC Metrics Layout */
-.qc-container {
+/* .qc-container {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: var(--spacing-8);
+  gap: var(--spacing-8); 
   margin-top: var(--spacing-6);
-}
+} */
 
 .qc-left,
 .qc-right {
@@ -1094,6 +1094,7 @@ body {
   border-radius: var(--radius);
   padding: var(--spacing-6);
   box-shadow: var(--shadow-sm);
+  margin-top: var(--spacing-6);
 }
 
 .qc-left h3,
@@ -1153,9 +1154,13 @@ body {
 
 .coverage-info {
   background: rgb(var(--muted) / 0.2);
-  border: 1px dashed rgb(var(--border));
+  border: 1px solid rgb(var(--border));
   border-radius: var(--radius);
   padding: var(--spacing-6);
+  /* text-align: center; */
+}
+
+.coverage-info:not(:has(table)) {
   text-align: center;
 }
 
@@ -1164,6 +1169,81 @@ body {
   font-size: 10pt;
   font-weight: 500;
   font-style: italic;
+}
+/* Coverage gaps table styling */
+.coverage-gaps-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 9pt;
+  background: transparent;
+  table-layout: fixed;
+}
+
+.coverage-gaps-table thead {
+  background: linear-gradient(
+    135deg,
+    rgb(var(--muted)) 0%,
+    rgb(var(--border)) 100%
+  );
+  border-bottom: 2px solid rgb(var(--accent));
+}
+
+.coverage-gaps-table th {
+  color: rgb(var(--foreground));
+  font-weight: 700;
+  padding: var(--spacing-3) var(--spacing-3);
+  text-align: left;
+  border-right: 1px solid rgb(var(--border));
+  font-size: 9pt;
+  letter-spacing: 0.05em;
+  background: rgb(var(--muted) / 0.5);
+}
+
+.coverage-gaps-table th:last-child {
+  border-right: none;
+}
+
+.coverage-gaps-table td {
+  padding: var(--spacing-3) var(--spacing-3);
+  border-bottom: 1px solid rgb(var(--border) / 0.3);
+  border-right: 1px solid rgb(var(--border) / 0.2);
+  vertical-align: top;
+  color: rgb(var(--foreground));
+  font-size: 9pt;
+}
+
+.coverage-gaps-table td:last-child {
+  border-right: none;
+}
+
+.coverage-gaps-table tbody tr:nth-child(even) {
+  background: rgb(var(--muted) / 0.2);
+}
+
+.coverage-gaps-table tbody tr:hover {
+  background: rgb(var(--accent) / 0.05);
+}
+
+/* Specific column widths for coverage gaps table */
+.coverage-gaps-table th:nth-child(1),
+.coverage-gaps-table td:nth-child(1) {
+  width: 20%; /* Gene */
+}
+
+.coverage-gaps-table th:nth-child(2),
+.coverage-gaps-table td:nth-child(2) {
+  width: 30%; /* ExonStart */
+}
+
+.coverage-gaps-table th:nth-child(3),
+.coverage-gaps-table td:nth-child(3) {
+  width: 30%; /* ExonEnd */
+}
+
+.coverage-gaps-table th:nth-child(4),
+.coverage-gaps-table td:nth-child(4) {
+  width: 20%; /* Coverage */
+  text-align: right;
 }
 
 /* Modern Methods & Limitations */

@@ -30,6 +30,7 @@ class ExcelDataReader:
 
         try:
             # Read the Excel file
+            import openpyxl
             excel_data = pd.read_excel(self.excel_path, sheet_name=None)
 
             if self.debug:
@@ -40,10 +41,69 @@ class ExcelDataReader:
                 if tab_name not in excel_data and required:
                     raise ValueError(f"Required tab '{tab_name}' not found in Excel file")
 
+            # Special handling for ClinVar_Link column to extract URLs from HYPERLINK formulas
+            if 'ACMG SF (P-LP)' in excel_data:
+                excel_data['ACMG SF (P-LP)'] = self._extract_hyperlinks(
+                    self.excel_path, 
+                    'ACMG SF (P-LP)', 
+                    excel_data['ACMG SF (P-LP)']
+                )
+
             return excel_data
 
         except Exception as e:
             raise Exception(f"Error reading Excel file: {e}")
+
+    def _extract_hyperlinks(self, excel_path: str, sheet_name: str, df: pd.DataFrame) -> pd.DataFrame:
+        """Extract URLs from Excel HYPERLINK formulas"""
+        import openpyxl
+        import re
+        
+        # Check if ClinVar_Link column exists
+        if 'ClinVar_Link' not in df.columns:
+            return df
+        
+        try:
+            # Load workbook with openpyxl to access formulas
+            wb = openpyxl.load_workbook(excel_path, data_only=False)
+            ws = wb[sheet_name]
+            
+            # Find column index for ClinVar_Link
+            header_row = [cell.value for cell in ws[1]]
+            if 'ClinVar_Link' not in header_row:
+                return df
+                
+            col_idx = header_row.index('ClinVar_Link') + 1
+            
+            # Extract URLs from HYPERLINK formulas
+            urls = []
+            for row in range(2, len(df) + 2):  # Start from row 2 (after header)
+                cell = ws.cell(row=row, column=col_idx)
+                cell_value = cell.value
+                
+                if cell_value and isinstance(cell_value, str) and cell_value.startswith('=HYPERLINK'):
+                    # Extract URL from formula: =HYPERLINK("URL","Display")
+                    match = re.search(r'=HYPERLINK\("([^"]+)"', cell_value)
+                    if match:
+                        urls.append(match.group(1))
+                    else:
+                        urls.append(None)
+                elif cell_value:
+                    urls.append(str(cell_value))
+                else:
+                    urls.append(None)
+            
+            # Update the DataFrame with extracted URLs
+            df['ClinVar_Link'] = urls
+            
+            if self.debug:
+                print(f"Extracted {sum(1 for u in urls if u)} ClinVar links from HYPERLINK formulas")
+            
+        except Exception as e:
+            if self.debug:
+                print(f"Warning: Could not extract hyperlinks: {e}")
+        
+        return df
 
     def validate_data(self, data: Dict[str, pd.DataFrame]) -> None:
         """Validate that required columns exist in each tab"""
@@ -128,12 +188,27 @@ class ExcelDataReader:
         page2_variants = []
 
         for _, row in pathogenic_variants.iterrows():
+            # Get ClinVar link - now extracted from HYPERLINK formula in read_all_tabs
+            clinvar_id = row.get('ClinVar_Link', '')
+            
+            # If still no link, try to construct from HGVSc as fallback
+            if not clinvar_id or pd.isna(clinvar_id):
+                if pd.notna(row.get('HGVSc')):
+                    hgvsc = str(row.get('HGVSc', ''))
+                    if ':' in hgvsc:
+                        # Extract just the HGVS notation after the colon
+                        hgvs_notation = hgvsc.split(':')[-1]
+                        clinvar_id = f"https://www.ncbi.nlm.nih.gov/clinvar/?term={quote_plus(hgvs_notation)}"
+                else:
+                    clinvar_id = ''
+            
             variant_data = {
                 'gene': row.get('Gene', '—'),
                 'hgvsc': row.get('HGVSc', '—'),
                 'hgvsp': row.get('HGVSp', '—'),
-                'clinvar_id': row.get('ClinVar_Link', ''),  # This contains the ClinVar ID
+                'clinvar_id': clinvar_id if clinvar_id else '',
             }
+
 
             # Check star rating
             stars = row.get('ClinVar_Stars', 0)
@@ -218,7 +293,9 @@ class ExcelDataReader:
 
                 gene_data = {
                     'gene': row.get('Gene', '—'),
-                    'transcript': row.get('MANE_ID', '—'),
+                    #'transcript': row.get('MANE_ID', '—'),
+                    'ExonStart': row.get('ExonStart', '—'),
+                    'ExonEnd': row.get('ExonEnd', '—'),
                     'coverage': f"{coverage_pct:.1f}%"
                 }
 
