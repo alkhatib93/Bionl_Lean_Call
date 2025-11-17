@@ -130,7 +130,7 @@ class TemplateProcessor:
 
             # Create gene cell with optional ClinVar link
             if clinvar_id:
-                gene_cell = f'<td class="font-semibold"><a href="{clinvar_id}" target="_blank">{gene}{clinvar_id}</a></td>'
+                gene_cell = f'<td class="font-semibold"><a href="{clinvar_id}" target="_blank">{gene}</a></td>'
             else:
                 gene_cell = f'<td class="font-semibold">{gene}</td>'
 
@@ -249,7 +249,6 @@ class TemplateProcessor:
         replacements = {
             '2025-10-05 08:58': data.get('report_generated', ''),
             'Bionl_Lean_call v1.0': data.get('pipeline', 'Bionl_Lean_call v1.0'),
-            'ClinVar (2025-01), gnomAD v4.1, Ensembl VEP Release 115, REVEL (latest release), AlphaMissense (Science 2023, updated 2025-05) SpliceAI (version 1.3.1), BayesDel (version 1.0)': data.get('databases', 'ClinVar (2025-01), gnomAD v4.1, Ensembl VEP Release 115, REVEL (latest release), AlphaMissense (Science 2023, updated 2025-05) SpliceAI (version 1.3.1), BayesDel (version 1.0)'),
         }
 
         for old_value, new_value in replacements.items():
